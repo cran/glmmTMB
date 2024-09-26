@@ -6,21 +6,11 @@ op <- getOption("glmmTMB.cores", 1)
 on.exit(options(glmmTMB.cores = op))
 options(glmmTMB.cores = 1)
 
-if (require(mvabund)) {
-
-  data(spider)
-  sppTot <- sort(colSums(spider$abund), decreasing = TRUE)
-  tmp <- cbind(spider$abund, spider$x)
-  tmp$id <- 1:nrow(tmp)
-  spiderDat <- reshape(tmp,
-                       idvar = "id",
-                       timevar = "Species",
-                       times =  colnames(spider$abund),
-                       varying = list(colnames(spider$abund)),
-                       v.names = "abund",
-                       direction = "long")
-  spiderDat_common <- subset(spiderDat, Species %in% names(sppTot)[1:4])
-
+sppTot <- sort(
+    tapply(spider_long$abund, list(spider_long$Species), sum),
+    decreasing = TRUE
+)
+spiderDat_common <- subset(spider_long, Species %in% names(sppTot)[1:4])
 
 test_that("rr model fit", {
     ## Fit poison model with rr
@@ -50,7 +40,8 @@ test_that("rr model fit", {
               expect_error(glmmTMB(abund ~ Species + rr(Species + 0|id, d = junk),
                                    family = poisson,
                                    data=spiderDat_common),
-                           "can't evaluate reduced-rank dimension")
+                           ## use . to allow for plain or fancy quotes
+                           regexp = "can't evaluate argument .junk.")
     })
 
     test_that("rr error about non-numeric d", {
@@ -97,4 +88,3 @@ test_that("rr model fit", {
 
     ## FIXME: test, remove if unnecessary
     options(glmmTMB.control = op) ## just in case on.exit() is inappropriate?
-} ## if require(mvabund)

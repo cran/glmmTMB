@@ -6,7 +6,6 @@ library(knitr)
 library(glmmTMB)
 library(MASS)    ## for mvrnorm()
 library(TMB)     ## for tmbprofile()
-library(mvabund) ## for spider data
 ## devtools::install_github("kaskr/adcomp/TMB")  ## get development version
 knitr::opts_chunk$set(echo = TRUE, eval=if (exists("params")) params$EVAL else FALSE)
 do_image <- exists("params") && params$EVAL
@@ -47,13 +46,15 @@ ctab <- read.delim(sep = "#", comment = "",
  Unstructured (general positive definite)      # `us`          #  $n(n+1)/2$     # # See [Mappings]
  Heterogeneous Toeplitz           # `toep`        #  $2n-1$         #     # log-SDs ($\\theta_1-\\theta_n$); correlations $\\rho_k = \\theta_{n+k}/\\sqrt{1+\\theta_{n+k}^2}$, $k = \\textrm{abs}(i-j+1)$
  Het. compound symmetry  # `cs`          #  $n+1$    #      # log-SDs ($\\theta_1-\\theta_n$); correlation $\\rho = \\theta_{n+1}/\\sqrt{1+\\theta_{n+1}^2}$
+ Homogenous diagonal     # `homdiag`     #  $1$      #  # log-SD
  Het. diagonal           # `diag`        #  $n$            #  # log-SDs
  AR(1)                            # `ar1`         #  $2$            # Unit spaced levels # log-SD; $\\rho = \\left(\\theta_2/\\sqrt{1+\\theta_2^2}\\right)^{d_{ij}}$
  Ornstein-Uhlenbeck               # `ou`          #  $2$            # Coordinates  # log-SD; log-OU rate ($\\rho = \\exp(-\\exp(\\theta_2) d_{ij})$)
  Spatial exponential              # `exp`         #  $2$            # Coordinates # log-SD; log-scale ($\\rho = \\exp(-\\exp(-\\theta_2) d_{ij})$)
  Spatial Gaussian                 # `gau`         #  $2$            # Coordinates # log-SD; log-scale ($\\rho = \\exp(-\\exp(-2\\theta_2) d_{ij}^2$)
  Spatial Matèrn                   # `mat`         #  $3$            # Coordinates # log-SD, log-range, log-shape (power)
- Reduced rank                     # `rr`          #  $nd-d(d-1)/2$  # rank (d)    
+ Reduced-rank                     # `rr`          #  $nd-d(d-1)/2$  # rank (d)    
+ Proptional                       # `propto`      #  $1$            # Variance-covariance matrix
 "
 )
 knitr::kable(ctab)
@@ -298,28 +299,64 @@ usefig("us_profile_plot.png")
 usefig("cs_profile_plot.png")
 
 ## ----rr_ex, eval = FALSE------------------------------------------------------
-#  if (require(mvabund)) {
-#      data(spider)
-#      ## organize data into long format
-#      sppTot <- sort(colSums(spider$abund), decreasing = TRUE)
-#      tmp <- cbind(spider$abund, spider$x)
-#      tmp$id <- 1:nrow(tmp)
-#      spiderDat <- reshape(tmp,
-#                           idvar = "id",
-#                           timevar = "Species",
-#                           times =  colnames(spider$abund),
-#                           varying = list(colnames(spider$abund)),
-#                           v.names = "abund",
-#                           direction = "long")
-#      ## fit rank-reduced models with varying dimension
-#      fit_list <- lapply(2:10,
-#                         function(d) {
-#                             fit.rr <- glmmTMB(abund ~ Species + rr(Species + 0|id, d = d),
-#                                               data = spiderDat)
-#                         })
-#      ## compare fits via AIC
-#      aic_vec <- sapply(fit_list, AIC)
-#      aic_vec - min(aic_vec, na.rm = TRUE)
+#  ## fit rank-reduced models with varying dimension
+#  dvec <- 2:10
+#  fit_list <- lapply(dvec,
+#                     function(d) {
+#                         glmmTMB(abund ~ Species + rr(Species + 0|id, d = d),
+#                                 data = spider_long)
+#                     })
+#  names(fit_list) <- dvec
+#  ## compare fits via AIC
+#  aic_vec <- sapply(fit_list, AIC)
+#  delta_aic  <- aic_vec - min(aic_vec, na.rm = TRUE)
+
+## ----spider-re-plot, message=FALSE, fig.width = 10, fig.height=7--------------
+#  spider_rr <- glmmTMB(abund ~ Species + rr(Species + 0|id, d = 3),
+#                       data = spider_long)
+#  re <- as.data.frame(ranef(spider_rr))
+#  re <- within(re, {
+#      ## sites in numeric order
+#      grp <- factor(grp, levels = unique(grp))
+#      ## species in site-1-predicted-abundance order
+#      term <- reorder(term, condval, function(x) x[1])
+#      lwr <- condval - 2*condsd
+#      upr <- condval + 2*condsd
+#  })
+#  if (require("ggplot2")) {
+#      ggplot(re, aes(grp, condval)) +
+#          geom_pointrange(aes(ymin=lwr, ymax = upr)) +
+#          facet_wrap(~term, scale = "free")
+#  }
+
+## ----get-fl-------------------------------------------------------------------
+#  source(system.file("misc", "extract_rr.R", package = "glmmTMB"))
+#  rr_info <- extract_rr(spider_rr)
+#  lapply(rr_info, dim)
+
+## ----spider-biplot, fig.width = 8, fig.height=8-------------------------------
+#  par(las = 1)
+#  afac <- 4
+#  sp_names <- abbreviate(gsub("Species", "", rownames(rr_info$fl)))
+#  plot(rr_info$fl[,1], rr_info$fl[,2], xlab = "factor 1", ylab = "factor 2", pch = 16, cex = 2)
+#  text(rr_info$b[,1]*afac*1.05, rr_info$b[,2]*afac*1.05, rownames(rr_info$b))
+#  arrows(0, 0, rr_info$b[,1]*afac, rr_info$b[,2]*afac)
+#  text(rr_info$fl[,1], rr_info$fl[,2], sp_names, pos = 3, col = 2)
+
+## ----propto_ex, eval = FALSE--------------------------------------------------
+#  require(ade4)
+#  require(ape)
+#  data(carni70)
+#  carnidat <- data.frame(species = rownames(carni70$tab), carni70$tab)
+#  tree <- read.tree(text=carni70$tre)
+#  phylo_varcov <- vcv(tree)# phylogenetic variance-covariance matrix
+#  # row/column names of phylo_varcov must match factor levels in data
+#  rownames(phylo_varcov) <- colnames(rownames(phylo_varcov)) <- gsub(".", "_", rownames(phylo_varcov))
+#  carnidat$dummy <- factor(1) # a dummy grouping variable must be added to the dataset
+#  
+#  fit_phylo <- glmmTMB(log(range) ~ log(size) + propto(0 + species | dummy, phylo_varcov),
+#                       data = carnidat)
+#  
 
 ## ----mm_int, eval = TRUE------------------------------------------------------
 model.matrix(~f, data.frame(f=factor(c("c", "s", "v"))))

@@ -6,7 +6,7 @@ stopifnot(require("testthat"),
 drop_version <- function(obj) {
     obj$modelInfo$packageVersion <- NULL
     obj$modelInfo$family$initialize <- NULL  ## updated initialization expressions
-    obj
+    obj$modelInfo$parallel <- NULL   ## parallel component changed from int to list
 }
 
 expect_equal_nover <- function(x,y,...) {
@@ -155,9 +155,9 @@ test_that("Update Binomial", {
 })
 
 test_that("internal structures", {
-  ## RE terms only in cond and zi model, not disp: GH #79
+  ## RE terms in cond, zi, and disp model
   expect_equal(names(fm0$modelInfo$reTrms),
-               c("cond","zi"))
+               c("cond","zi", "disp"))
 })
 
 test_that("close to lme4 results", {

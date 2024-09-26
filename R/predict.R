@@ -35,6 +35,7 @@ assertIdenticalModels <- function(data.tmb1, data.tmb0, allow.new.levels=FALSE) 
     }
     checkTerms( data.tmb1$terms,   data.tmb0$terms )
     checkTerms( data.tmb1$termszi, data.tmb0$termszi )
+    checkTerms( data.tmb1$termsdisp, data.tmb0$termsdisp )
     ## Fixed effect parameters must be identical
     checkModelMatrix <- function(X1, X0) {
         if( !identical(colnames(X1), colnames(X0)) ) {
@@ -52,7 +53,7 @@ assertIdenticalModels <- function(data.tmb1, data.tmb0, allow.new.levels=FALSE) 
     }
     checkModelMatrix(getX(data.tmb1), getX(data.tmb0))
     checkModelMatrix(getX(data.tmb1,"zi"), getX(data.tmb0,"zi"))
-    checkModelMatrix(getX(data.tmb1,"d"), getX(data.tmb0,"d"))
+    checkModelMatrix(getX(data.tmb1,"disp"), getX(data.tmb0,"disp"))
     NULL
 }
 
@@ -76,7 +77,8 @@ assertIdenticalModels <- function(data.tmb1, data.tmb0, allow.new.levels=FALSE) 
 ##' \item{"zprob"}{the probability of a structural zero (returns 0 for non-zero-inflated models)}
 ##' \item{"zlink"}{predicted zero-inflation probability on the scale of
 ##' the logit link function (returns \code{-Inf} for non-zero-inflated models)}
-##' \item{"disp"}{dispersion parameter however it is defined for that particular family as described in  \code{\link{sigma.glmmTMB}}}
+##' \item{"disp"}{dispersion parameter, however it is defined for that particular family (as described in  \code{\link{sigma.glmmTMB}})}
+##' \item{"latent"}{return latent variables}
 ##' }
 ##' @param na.action how to handle missing values in \code{newdata} (see \code{\link{na.action}});
 ##' the default (\code{na.pass}) is to predict \code{NA}
@@ -107,6 +109,9 @@ assertIdenticalModels <- function(data.tmb1, data.tmb0, allow.new.levels=FALSE) 
 ##' nd_pop <- data.frame(Days=unique(sleepstudy$Days),
 ##'                      Subject=NA)
 ##' predict(g0, newdata=nd_pop)
+##' ## return latent variables (BLUPs/conditional modes/etc. ) with standard errors
+##' ##  (actually conditional standard deviations)
+##' predict(g0, type = "latent", se.fit = TRUE)
 ##' @importFrom TMB sdreport
 ##' @importFrom stats optimHess model.frame na.fail na.pass napredict contrasts<-
 ##' @export
@@ -115,16 +120,17 @@ predict.glmmTMB <- function(object,
                             newparams=NULL,
                             se.fit=FALSE,
                             cov.fit=FALSE,
-                            re.form=NULL, allow.new.levels=FALSE,
+                            re.form=NULL,
+                            allow.new.levels=FALSE,
                             type = c("link", "response",
                                      "conditional", "zprob", "zlink",
-                                     "disp"),
+                                     "disp", "latent"),
                             zitype = NULL,
                             na.action = na.pass,
                             fast=NULL,
                             debug=FALSE,
                             ...) {
-  ## FIXME: add re.form
+  ## FIXME: implement 'complete' re.form (e.g. identify elements of Z or b that need to be zeroed out)
 
   check_dots(..., .action = "warning")
                
@@ -156,6 +162,7 @@ predict.glmmTMB <- function(object,
                      zlink      = ,
                      zprob      = "prob",
                      disp       = "disp", #zi irrelevant; just reusing variable
+                     latent     = "uncorrected",  ## ignored, but needs to have a legal value
                      stop("unknown type ",type))
   ziPredCode <- .valid_zipredictcode[ziPredNm]
 
@@ -171,8 +178,13 @@ predict.glmmTMB <- function(object,
   if (is.null(fast)) fast <- !new_stuff
 
   ## what to ADREPORT:
-  ## 0 = no pred; 1 = response scale; 2 = link scale
-  do_pred_val <- if (!se.fit) 0 else if (!grepl("link",type)) 1 else 2
+  ## 0 = no pred; 1 = response scale; 2 = link scale; 3 = latent vars
+    do_pred_val <- if (!se.fit) {  0
+                   } else if (type == "latent") {
+                       3
+                   } else if (!grepl("link",type)) {
+                       1
+                   } else 2
 
   na.act <- attr(model.frame(object),"na.action")
   do.napred <- missing(newdata) && !is.null(na.act)
@@ -181,7 +193,7 @@ predict.glmmTMB <- function(object,
   ## want to make a giant if-block
   ## ('goto' would be handy here ...)
   if (noZI(object) && type %in% c("zprob", "zlink")) {
-    dd <- if (!is.null(newdata)) newdata else object$obj$env$data$Xd
+    dd <- if (!is.null(newdata)) newdata else object$obj$env$data$Xdisp
     pred <- se <- setNames(numeric(nrow(dd)), rownames(dd))
     se[] <- NA_real_
     pred[] <- if (type == "zprob") 0 else -Inf
@@ -348,7 +360,8 @@ predict.glmmTMB <- function(object,
                                fr=augFr,
                                yobs=yobs,
                                respCol=respCol,
-                               weights=model.weights(augFr),
+                               ## need to strip attributes
+                               weights=c(model.weights(augFr)),
                                contrasts=omi$contrasts,
                                family=omi$family,
                                ziPredictCode=ziPredNm,
@@ -363,7 +376,7 @@ predict.glmmTMB <- function(object,
                     )
 
     ## drop rank-deficient columns if necessary
-    for (nm in c("", "zi", "d")) {
+    for (nm in c("", "zi", "disp")) {
         xnm <- paste0("X", nm)
         betanm <- paste0("beta", nm)
         X <- getME(object, xnm)
@@ -387,7 +400,7 @@ predict.glmmTMB <- function(object,
                              any(!is.finite(Z@x)) |
                              any(!is.finite(Xzi)) |
                              any(!is.finite(Zzi@x)) |
-                             any(!is.finite(Xd))
+                             any(!is.finite(Xdisp))
     ) stop("Some variables in newdata needed for predictions contain NAs or NaNs.
            This is currently incompatible with se.fit=TRUE or cov.fit=TRUE."))
   }
@@ -405,17 +418,22 @@ predict.glmmTMB <- function(object,
   }
 
   if (pop_pred) {
+
+      ## use re.form, ll. 749ff of utils.R to decide which
+      ##  b values to set to zero.  OK to map _all_ values in this case
+      ##  (unless they're in newparams) ?
+      ## browser()           
       TMBStruc <- within(TMBStruc, {
           parameters$b[] <- 0
           mapArg$b <- factor(rep(NA,length(parameters$b)))
       })
   }
 
-  n_orig <- openmp(n = object$modelInfo$parallel)
+  n_orig <- do.call(openmp, object$modelInfo$parallel)
   if (openmp_debug()) {
       cat("predict: setting OpenMP threads to ", n_orig, " on exit\n")
   }
-  on.exit(openmp(n_orig), add = TRUE)
+  on.exit(do.call(openmp, n_orig), add = TRUE)
 
   newObj <- with(TMBStruc,
                  MakeADFun(data.tmb,
@@ -431,18 +449,25 @@ predict.glmmTMB <- function(object,
   }  ## NOT fast
 
   ## set TMB threads to value from original model fit/reset on exit
-  if (!is.null(parallel <- object$modelInfo$parallel)) {
-    n_orig <- openmp(NULL)
-    if (openmp_debug()) cat("resetting TMB threads to ",  parallel, "\n")
-    openmp(parallel)
-    on.exit(openmp(n = n_orig), add = TRUE)
+  ## FIXME: OpenMP reporting is not quite right
+  ## n = 1L rather than NULL so we report "setting" rather than "current"
+  ## autopar switches from NULL to FALSE (default)  
+  parallel <- object$modelInfo$parallel
+  if (!all(sapply(parallel, is.null))) {
+      n_orig <- openmp()
+      do.call(openmp, parallel)
+      on.exit(do.call(openmp, n_orig), add = TRUE)
   }
 
-  if (openmp_debug()) cat("TMB threads currently set to ", openmp(NULL), "\n")
-  return_eta <- type %in% c("zlink", "link")
+
+  if (openmp_debug()) {
+      cat("TMB threads currently set to ", openmp(NULL), "\n")
+  }
+  return_par <- if (type %in% c("zlink", "link")) "eta_predict" else if (type=="latent") "b" else "mu_predict"
+
   if (!se.fit) {
     rr <- newObj$report(lp)
-    pred <- if (return_eta) rr$eta_predict else rr$mu_predict
+    pred <- rr[[return_par]]
   } else {
     H <- with(object,optimHess(oldPar,obj$fn,obj$gr))
     ## FIXME: Eventually add 'getReportCovariance=FALSE' to this sdreport
@@ -453,12 +478,11 @@ predict.glmmTMB <- function(object,
         covfit <- sdr$cov
     } else sdr <- sdreport(newObj,oldPar,hessian.fixed=H,getReportCovariance=FALSE)
     sdrsum <- summary(sdr, "report") ## TMB:::summary.sdreport(sdr, "report")
-    w <- if (return_eta) "eta_predict" else "mu_predict"
-    ## multiple rows with identical names; naive indexing
-    ## e.g. sdrsum["mu_predict", ...] returns only the first instance
-    w <- which(rownames(sdrsum)==w)
-    pred <- sdrsum[w,"Estimate"]
-    se <- sdrsum[w,"Std. Error"]
+    ## split summary matrix by parameter name
+    sdrsplit <- split.data.frame(sdrsum, rownames(sdrsum))
+    pred <- sdrsplit[[return_par]][,"Estimate"]
+    se <- sdrsplit[[return_par]][,"Std. Error"]
+    w <- which(rownames(sdrsum) == return_par)
     if (cov.fit) covfit <- covfit[w, w]
   }
   if (do.napred) {

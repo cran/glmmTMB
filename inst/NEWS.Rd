@@ -4,7 +4,68 @@
 \title{glmmTMB News}
 \encoding{UTF-8}
 
-\section{CHANGES IN VERSION 1.1.9}{
+\section{CHANGES IN VERSION 1.1.10}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item added random effect structure propto to fit multivariate random effects proportional to a known variance-covariance matrix. This feature is
+      EXPERIMENTAL; please post any problems at \url{https://github.com/glmmTMB/glmmTMB/pull/1068}. See \code{vignette("covstruct")}
+      \item added "nbinom12" family after Lindén and Mäntyniemi (2011)
+      \item random effects, including smooth terms with \code{s()}, can
+      now be included in the dispersion model. This feature is
+      EXPERIMENTAL; please post any problems to the issues list
+      \item added "skewnormal" family (@psmorris) (EXPERIMENTAL:
+      some manual adjustment of starting values may be required)
+      \item \code{predict()} now offers \code{type = "latent"}, which
+      returns the values of the latent variables (with conditional
+      standard deviations if \code{se.fit = TRUE})
+      \item now works with automatic parallelization based on the
+      underlying TMBad autodiff library (specify
+      \code{parallel=list(..., autopar=TRUE)} in \code{glmmTMBControl}
+      or set \code{options(glmmTMB.autopar = TRUE)})
+    } % itemize
+  } % new features
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item the name of the
+      vector of fixed-effect parameters for the dispersion
+      model has changed from \code{betad} to \code{betadisp};
+      code that specifies parameter values (e.g. as part
+      of a \code{start} argument or in \code{newparams} for
+      \code{simulate_new}) may need to be adjusted. (For
+      developers: There are similar name changes to other internal
+      model components, e.g. \code{Xd} becomes \code{Xdisp}.)
+    } % itemize
+  } % user-visible changes
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item fixed bug in \code{simulate_new} for \code{family = "beta_family"}
+      \item simulation now works for models fitted with the (scaled) t
+	distribution (GH #1024)
+      \item \code{vcov} works better for cases where \code{map} is used
+      to fix sets of parameters equal to each other
+      \item fix printing bug for zero-inflation covariance matrices (SO
+      78393784)
+      \item \code{up2date} now works for models with mapped parameters
+      (GH #874)
+      \item \code{ranef()} now works properly for reduced-rank models
+      \item Pearson residuals now work for models with non-trivial
+      dispersion components (GH #1053)
+      \item bug fixes to \code{get_cor()}, \code{put_cor()} utility functions
+      \item \code{mgcv} smooths with no unpenalized components
+      (e.g. \code{s(..., bs  = "sos")}) now work
+      \item better calculation of \code{df.residual} when
+      \code{REML=TRUE} (#1039)=
+    } % itemize
+  } % bug fixes
+  \subsection{OTHER CHANGES}{
+    \itemize{
+      \item now imports random effect machinery from the
+      \code{reformulas} package rather than from \code{lme4}
+    } % itemize
+  } % other changes
+} % 1.1.9-9000
+  
+\section{CHANGES IN VERSION 1.1.9 (2024-03-20)}{
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item the underlying parameterization of the dispersion for
@@ -13,7 +74,7 @@
       \itemize{
 	\item results of fitting Gaussian models may change slightly,
 	especially for unstable fits
-	\item stored model objects need to have their \code{betad}
+	\item stored model objects need to have their \code{betadisp}
 	parameters halved for consistency: use \code{up2date(..., adjust_gauss_disp = TRUE)}
 	\item parameter estimates for dispersion components will change,
 	e.g. from \code{fixef(.)$disp} or \code{confint()} for models
@@ -52,7 +113,7 @@
       attributes (GH #977)
     } % itemize
   } % bug fixes
-} % 1.1.8-9000
+} % 1.1.9
 
 \section{CHANGES IN VERSION 1.1.8 (2023-10-07)}{
   \subsection{NEW FEATURES}{

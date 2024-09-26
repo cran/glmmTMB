@@ -4,6 +4,11 @@ stopifnot(require("testthat"),
 data(sleepstudy, cbpp, Pastes,
      package = "lme4")
 
+## handy for interactive use
+if (FALSE) {
+    source("tests/testthat/setup_makeex.R")
+}
+
 if (getRversion() < "3.3.0") {
     sigma.default <- function (object, use.fallback = TRUE, ...)
         sqrt(deviance(object, ...)/(nobs(object, use.fallback = use.fallback) -
@@ -68,7 +73,19 @@ test_that("Fitted and residuals", {
     expect_equal(unname(which(is.na(rs.ex))),napos)
     pr.rs.ex <- pr.ex + rs.ex
     expect_equal(unname(pr.rs.ex), y.na)
-    
+
+    ##
+    m1 <- glmmTMB(count ~ cover, family = gaussian, dispformula = ~cover, data = Salamanders)
+    expect_equal(mean(residuals(m1, type = "pearson")),
+                 -5.14833310763953e-05, tolerance = 1e-6)
+    expect_equal(residuals(m1, type = "pearson"),
+                 residuals(m1)/predict(m1, type = "disp"))
+})
+
+test_that("Pop-level residuals", {
+    r1 <- residuals(fm2, re.form  = NA)
+    r2 <- model.response(model.frame(fm2)) - predict(fm2, re.form = NA)
+    expect_equal(r1, r2)
 })
 
 test_that("Predict", {
@@ -229,7 +246,7 @@ structure(c(5.48098713179567, 0.0248163864044954, 183.810584890723,
     expect_equal(ci.prof0,
                  structure(c(238.216039176535, 7.99674863649355, 3.758897,
                              264.368471102549, 12.8955469713508, 3.966739),
-                           .Dim = 3:2, .Dimnames = list(c("(Intercept)", "Days", "d~(Intercept)"),
+                           .Dim = 3:2, .Dimnames = list(c("(Intercept)", "Days", "disp~(Intercept)"),
                                                         c("2.5 %", "97.5 %"))),
                  tolerance=1e-4)
 
@@ -368,14 +385,18 @@ test_that("profile", {
 
 test_that("profile (no RE)", {
     p0_th <- profile(fm_noRE,npts=4)
-    expect_equal(dim(p0_th),c(41,3))
+    ## graphical check, looks fine
+    ## library(ggplot2)
+    ## ggplot(p0_th, aes(.focal, value)) + geom_point() + geom_line() +
+    ## facet_wrap(~.par, scale = "free")
+    expect_equal(dim(p0_th),c(43, 3))
 })
 
 test_that("vcov", {
     expect_equal(dim(vcov(fm2)[[1]]),c(2,2))
     expect_equal(dim(vcov(fm2,full=TRUE)),c(6,6))
     expect_equal(rownames(vcov(fm2,full=TRUE)),
-           structure(c("(Intercept)", "Days", "d~(Intercept)",
+           structure(c("(Intercept)", "Days", "disp~(Intercept)",
                        "theta_Days|Subject.1", "theta_Days|Subject.2",
                        "theta_Days|Subject.3"),
           .Names = c("cond1", "cond2", "disp", "theta1", "theta2", "theta3")))
@@ -385,16 +406,12 @@ test_that("vcov", {
     ## expect_error(vcov(fm2,x="junk"),"unknown arguments")
 })
 
-set.seed(101)
-test_that("simulate", {
-    sm2 <<- rowMeans(do.call(cbind, simulate(fm2, 10)))
-    sm2P <<- rowMeans(do.call(cbind, simulate(fm2P, 10)))
-    sm2G <<- rowMeans(do.call(cbind, simulate(fm2G, 10)))
-    sm2NB <<- rowMeans(do.call(cbind, simulate(fm2NB, 10)))
-    expect_equal(sm2, sleepstudy$Reaction, tol=20)
-	expect_equal(sm2P, sleepstudy$Reaction, tol=20)
-	expect_equal(sm2G, sleepstudy$Reaction, tol=20)
-	expect_equal(sm2NB, sleepstudy$Reaction, tol=20)
+
+test_that("simulate with re.form = NA", {
+    s1 <- simulate(fm_diag2, seed = 101)
+    ## s1_pop <- simulate(fm_diag2, seed = 101, re.form = NA)
+    s1_lmer <- simulate(fm_diag2_lmer, seed = 101)
+    ## s1_lmer_pop <- simulate(fm_diag2_lmer, seed = 101, re.form = NA)
 })
 
 test_that("formula", {
@@ -404,15 +421,6 @@ test_that("formula", {
     expect_equal(formula(fm2, component="disp", fixed.only=TRUE), ~1)
     expect_equal(formula(fm2, component="zi"), ~0)
     expect_equal(formula(fm2, component="zi", fixed.only=TRUE), ~0)
-})
-
-context("simulate consistency with glm/lm")
-test_that("binomial", {
-    s1 <- simulate(f1b, 5, seed=1)
-    s2 <- simulate(f2b, 5, seed=1)
-    s3 <- simulate(f3b, 5, seed=1)
-    expect_equal(max(abs(as.matrix(s1) - as.matrix(s2))), 0)
-    expect_equal(max(abs(as.matrix(s1) - as.matrix(s3))), 0)
 })
 
 test_that("residuals from binomial factor responses", {
@@ -430,7 +438,7 @@ rr <- function(txt) {
     read.table(header=TRUE,stringsAsFactors=FALSE,text=txt,
                colClasses=rep(c("character","numeric"),c(5,2)))
 }
-context("Ranef etc.")
+
 test_that("as.data.frame(ranef(.)) works",
   {
       expect_equal(
@@ -532,7 +540,7 @@ test_that("confint works for models with dispformula", {
 
 simfun <- function(formula, family, data, beta=c(0,1)) {
     ss <- list(beta=beta)
-    if (grepl("nbinom",family)) ss$betad <- 0
+    if (grepl("nbinom",family)) ss$betadisp <- 0
     suppressWarnings(m1 <- glmmTMB(formula,
                                    family=family,
                                    data=data,
@@ -626,7 +634,7 @@ test_that("de novo simulation", {
                  seed = 101,
                  family = gaussian,
                  newdata = dd,
-                 newparams = list(beta = 1:2, betad = 0))
+                 newparams = list(beta = 1:2, betadisp = 0))
     expect_equal(head(ss[[1]], 2),
                       c(2.67396350948461, 5.55246185541914))
 })
@@ -638,14 +646,15 @@ test_that("de novo simulation with binomial N>1", {
                  family = binomial,
                  weights = rep(10, 10),
                  newdata = dd,
-                 newparams = list(beta = c(-0.5, 0.1)))
+                 newparams = list(beta = c(-0.5, 0.1))
+          )
     expect_equal(head(ss[[1]], 2),
                       c(3, 2))
 })
 
 test_that("de novo simulation error checking", {
     dd <- data.frame(x = 1:10)
-    expect_error(simulate_new(~ x,
+    expect_warning(simulate_new(~ x,
                  seed = 101,
                  family = gaussian,
                  newdata = dd,
@@ -660,6 +669,19 @@ test_that("de novo simulation error checking", {
                  "unmatched parameter names: junk")
 })
 
+test_that("good simulate_new response values for beta", {
+    data("sleepstudy", package = "lme4")
+    ss <- simulate_new(
+        ~ Days + (Days | Subject),
+        newdata = sleepstudy,
+        newparams = list(beta = c(-1, 0.1),
+                         theta = c(-1, -1, 0),
+                         betadisp = 10),
+        family = "beta_family",
+        seed = 101)
+    expect_equal(head(ss[[1]], 3),
+                 c(0.246573218210702, 0.309824346705961, 0.367484246522732))
+})
 
 test_that("weighted residuals", {
     set.seed(101)
@@ -670,12 +692,44 @@ test_that("weighted residuals", {
                  data = cbpp, family = poisson, weights = wts)
     tmbm5 <- glmmTMB(incidence ~ period,
                      data = cbpp, family = poisson, weights = wts)
-    for  (type in eval(formals(residuals.glmmTMB)$type)) {
+    resid_types <- setdiff(eval(formals(residuals.glmmTMB)$type),
+                           "dunn-smyth")
+    for  (type in resid_types) {
         expect_equal(residuals(tmbm4, type = type),
                      residuals(tmbm5, type = type),
                      tolerance = 1e-6)
     }
 })
+
+test_that("ranef for rr() models", {
+    set.seed(101)
+    m1 <- glmmTMB(abund ~ Species + rr(Species + 0|id, d = 1),
+                  data = spider_long)
+    expect_equal(tolerance = 1e-6,
+                 head(as.data.frame(ranef(m1)), 2),
+                 structure(list(component = c("cond", "cond"), grpvar = c("id", "id"),
+                                term = structure(c(1L, 1L),
+      levels = c("SpeciesAlopacce",  "SpeciesAlopcune", "SpeciesAlopfabr", "SpeciesArctlute", "SpeciesArctperi", 
+"SpeciesAuloalbi", "SpeciesPardlugu", "SpeciesPardmont", "SpeciesPardnigr", 
+"SpeciesPardpull", "SpeciesTrocterr", "SpeciesZoraspin"), class = "factor"), 
+    grp = structure(c(9L, 7L), levels = c("7", "5", "13", "4", 
+    "14", "3", "2", "6", "1", "8", "16", "12", "15", "18", "17", 
+    "19", "20", "25", "21", "11", "9", "10", "28", "26", "22", 
+    "23", "24", "27"), class = "factor"), condval = c(-0.893053872609456, 
+    -1.00956536260405), condsd = c(1.13999978200572, 1.29609467840739
+                                   )), row.names = c("cond.1", "cond.2"), class = "data.frame"))
+})
+
+test_that("dunn-smyth residuals", {
+    set.seed(101)
+    expect_equal(head(residuals(fm2NB, type = "dunn-smyth")),
+                 c(-0.359359541418763, -0.650271471641143,
+                   -1.65874788276259, 
+                   0.534218575163113,
+                   1.13173385534682, 2.37431279792035),
+                 tolerance = 1e-6)
+})
+
 # This test started also giving a warning on os "mac".
 # test_that("bad inversion in vcov", {
 #     skip_on_os(c("windows", "linux"))

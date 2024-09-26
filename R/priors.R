@@ -1,10 +1,10 @@
 
 prior_synonyms <- c("fixef" = "beta",
-                    "fixef_zi" = "beta_zi",
-                    ## FIXME: update to betadisp when RE_disp is merged
-                    "fixef_disp" = "betad",
+                    "fixef_zi" = "betazi",
+                    "fixef_disp" = "betadisp",
                     "ranef" = "theta",
-                    "ranef_zi" = "theta_zi",
+                    "ranef_zi" = "thetazi",
+                    "ranef_disp" = "thetadisp",
                     "psi" = "shape")
 
 prior_ivars <- paste0("prior_", c("distrib", "whichpar", "elstart", "elend", "npar"))
@@ -92,7 +92,8 @@ proc_priors <- function(priors, info = NULL) {
                                 ## keep names, shift back one
                                 nm <- names(cc)
                                 if (length(cc) == 0) return(integer(0))
-                                cc <- c(1, cc) |> setNames(c(nm, "..total"))
+                                cc <- c(1, cc)
+                                names(cc) <- c(nm, "..total")
                                 return(cc)
                             })
 
@@ -102,7 +103,8 @@ proc_priors <- function(priors, info = NULL) {
         ##
 
         ## set pc to blank if missing
-        pc <- priors[["coef"]][i] %||% "" |> trimws()
+        pc <- priors[["coef"]][i] %||% ""
+        pc <- trimws(pc)
         if (pc == "") {
             if (substr(cl, 1, 4) == "beta") {
                 prior_elend[i] <- length(info$fix[[match_names(cl)]])-1
@@ -137,7 +139,10 @@ proc_priors <- function(priors, info = NULL) {
                     w <- match(re_term, nospace(names(re_info)))
                     if (is.na(w)) {
                         ## ... or just grouping variable
-                        w <- match(re_term, gsub("^[^|]+\\|", "", nospace(names(re_info))))
+                        gvars <- gsub("^[^|]+\\|", "", nospace(names(re_info)))
+                        w <- match(re_term, gvars)
+                        if (is.na(w)) stop(sprintf("can't match random effects prior coef specification ('%s') with any random effects term or grouping variable (%s)",
+                                           re_term, paste(gvars, collapse = ", ")))
                     }
                     if (is.na(re_term)) stop("can't match prior RE term", re_term)
                     theta_start <- nthetavec[[component]][w] - 1 ## C++ index
@@ -192,14 +197,14 @@ proc_priors <- function(priors, info = NULL) {
 #' use of priors in glmmTMB
 #'
 #' (EXPERIMENTAL/subject to change)
-#' 
+#'
 #' \code{glmmTMB} can accept prior specifications, for doing maximum \emph{a posteriori} (MAP) estimation (or Hamiltonian MC with the \code{tmbstan} package), or (outside of a Bayesian framework) for the purposes of regularizing parameter estimates  
-#' 
+#'
 #' The \code{priors} argument to \code{glmmTMB} must (if not NULL) be a data frame with columns
 #' \describe{
 #' \item{\code{prior}}{character; the prior specification, e.g. "normal(0,2)"}
 #' \item{\code{class}}{the name of the underlying parameter vector on which to impose the prior ("fixef", "fixef_zi", "fixef_disp", "ranef", "ranef_zi", "psi")}
-#' \item{\code{coef}}{(optional) a string (if present) specifying the particular elements of the parameter vector to apply the prior to. \code{coef} should specify an integer parameter index, a column name from the fixed effect model matrix or a grouping variable for a random effect (the behaviour is currently undefined if there is more one than random effect term with the same grouping variable in a model ...); one can also append "_cor" or "_sd" to a random-effects \code{class} specification to denote the correlation parameters, or all of the standard deviation parameters, corresponding to a particular random effect term. If the \code{class} element is missing, or a particular element is blank, then all of the elements of the specified parameter vector use independent priors with the given specification. The exception is for fixed-effect parameter vectors, where the intercept (if present) is not included; the prior on the intercept must be set explicitly.}
+#' \item{\code{coef}}{(optional) a string (if present) specifying the particular elements of the parameter vector to apply the prior to. \code{coef} should specify an integer parameter index, a column name from the fixed effect model matrix or a grouping variable for a random effect (the behaviour is currently undefined if there is more one than random effect term with the same grouping variable in a model ...); one can also append "_cor" or "_sd" to a random-effects \code{class} specification to denote the correlation parameters, or all of the standard deviation parameters, corresponding to a particular random effect term. If the \code{class} element is missing, or a particular element is blank, then all of the elements of the specified parameter vector use independent priors with the given specification. The exception is for the fixed-effect parameter vectors ("fixef", "fixef_zi", "fixef_disp"), where the intercept (if present) is not included; the prior on the intercept must be set explicitly.}
 #' }
 #' `The available prior distributions are:
 #' \itemize{
@@ -210,7 +215,7 @@ proc_priors <- function(priors, info = NULL) {
 #' \item "lkj" (correlation) [WARNING, maybe buggy at present!]
 #' }
 #' The first three are typically used for fixed effect parameters; the fourth for standard deviation parameters; and the last for correlation structures. See the "priors" vignette for examples and further information.
-#' 
+#'
 #' @name priors
 #'
 #' @examples
@@ -220,11 +225,16 @@ proc_priors <- function(priors, info = NULL) {
 #'                      class = c("fixef", "fixef", "ranef_sd"),
 #'                      coef = c("(Intercept)", "Days", "Subject"))
 #' g1 <- glmmTMB(Reaction ~ 1 + Days + (1 + Days |Subject), sleepstudy)
-#' update(g1, prior = prior1)
+#' update(g1, priors = prior1)
 #' prior2 <- data.frame(prior = c("t(0,3,3)","gamma(10,1)"),
 #'                      class = c("fixef", "ranef_sd"),
 #'                      coef = c("", "Subject"))
-#' update(g1, prior = prior2) 
+#' update(g1, priors = prior2)
+#' ## no prior is set for the intercept in this case - see Details above
+#' prior3 <- data.frame(prior = "t(0, 3, 3)",
+#'                      class = "fixef")
+#' update(g1, priors = prior3)
+#' 
 NULL
 
 
@@ -235,7 +245,7 @@ print.glmmTMB_prior <- function(x, compact = FALSE, ...) {
     pstr <- character(nrow(x))
     for (i in seq_len(nrow(x))) {
         resp <- from_prior_syn(x$class[i])
-        if (nzchar(x$coef[i])) {
+        if (!is.null(x$coef) && nzchar(x$coef[i])) {
             resp <- sprintf("%s (%s)", resp, x$coef[i])
         }
         ff <- reformulate(x$prior[i], response = resp)

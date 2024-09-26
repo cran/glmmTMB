@@ -12,7 +12,7 @@
 
 <meta name="author" content="Ben Bolker" />
 
-<meta name="date" content="2024-03-18" />
+<meta name="date" content="2024-09-26" />
 
 <title>Post-hoc MCMC with glmmTMB</title>
 
@@ -120,7 +120,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Post-hoc MCMC with glmmTMB</h1>
 <h4 class="author">Ben Bolker</h4>
-<h4 class="date">2024-03-18</h4>
+<h4 class="date">2024-09-26</h4>
 
 
 
@@ -206,7 +206,7 @@ run_MCMC &lt;-<span class="st"> </span><span class="cf">function</span>(start,
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">t1 &lt;-<span class="st"> </span><span class="kw">system.time</span>(m1 &lt;-<span class="st"> </span><span class="kw">run_MCMC</span>(<span class="dt">start=</span>rawcoef,
                                  <span class="dt">V=</span>V, <span class="dt">logpost_fun=</span>logpost_fun,
                                  <span class="dt">seed=</span><span class="dv">1001</span>))</code></pre></div>
-<p>(running this chain takes 13.2 seconds)</p>
+<p>(running this chain takes 4.5 seconds)</p>
 <p>Add more informative names and transform correlation parameter (see vignette on covariance structures and parameters):</p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">colnames</span>(m1) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="kw">names</span>(<span class="kw">fixef</span>(fm1)[[<span class="dv">1</span>]]),
                   <span class="st">&quot;log(sigma)&quot;</span>,
@@ -223,7 +223,7 @@ m1[,<span class="st">&quot;cor&quot;</span>] &lt;-<span class="st"> </span><span
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">## install.packages(&quot;tmbstan&quot;)
 <span class="kw">library</span>(tmbstan)
 t2 &lt;-<span class="st"> </span><span class="kw">system.time</span>(m2 &lt;-<span class="st"> </span><span class="kw">tmbstan</span>(fm1<span class="op">$</span>obj))</code></pre></div>
-<p>(running this command, which creates 4 chains, takes 125.7 seconds)</p>
+<p>(running this command, which creates 4 chains, takes 336.1 seconds)</p>
 <p>However, there are many indications (warning messages; trace plots) that the correlation parameter needs to be given a more informative prior. (In the plot below, the correlation parameter is shown on its unconstrained scale; the actual correlation would be <span class="math inline">\(\theta_3/\sqrt{1+\theta_3^2}\)</span>.)</p>
 </div>
 <div id="to-do" class="section level2">

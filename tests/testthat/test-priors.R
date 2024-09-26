@@ -103,3 +103,52 @@ test_that("print specific coefs for priors", {
     expect_true(any(grepl("fixef(DOP)", cc, fixed = TRUE)))
 })
 
+test_that("print.priors_glmmTMB works without coef column #1014", {
+  gdat <- readRDS(system.file("vignette_data", "gophertortoise.rds", package = "glmmTMB"))
+  gmod_glmmTMB <- glmmTMB(
+    shells ~ prev + offset(log(Area)) + factor(year) + (1 | Site),
+    family = poisson,
+    data = gdat
+  )
+  gprior <- data.frame(
+    prior = "gamma(1e8, 2.5)",
+    class = "ranef"
+  )
+  gmod_glmmTMB_p <- update(gmod_glmmTMB, priors = gprior)
+  x <- summary(gmod_glmmTMB_p)
+  out <- capture.output(print(x$priors))
+  expect_identical(trimws(out), "ranef ~ gamma(1e+08, 2.5)")
+  expect_no_error(capture.output(print(x)))
+})
+
+test_that("prior specs", {
+    skip_on_cran()
+    m2 <- glmmTMB(count ~ spp + mined + (1 | site),
+                  zi = ~ spp + mined,
+                  family = nbinom2, data = Salamanders
+                  )
+    prior6 <- data.frame(
+        prior = c("normal(250,3)", "t(0,3,3)", "t(0,3,3)", "gamma(10,1)"),
+        class = c("fixef", "fixef", "fixef_zi", "ranef_sd"),
+        coef = c(1, 2, 1, 1)
+    )
+    g6p <- suppressWarnings(update(m2, prior = prior6)) ## NPD
+    expect_equal(fixef(g6p)$cond[[1]], 248.6945, tolerance = 1e-5)
+    
+    prior7 <- data.frame(
+        prior = c("normal(250,3)", "t(0,3,3)", "t(0,3,3)", "gamma(10,1)"),
+        class = c("fixef", "fixef", "fixef_zi", "ranef_sd"),
+        coef = c("(Intercept)", "minedno", "minedno", "(Intercept)")
+    )
+    expect_error(update(m2, prior = prior7), "can't match")
+
+
+    prior8 <- prior7
+    prior8$coef[4] <- "site"
+    suppressWarnings(g8p <- update(m2, prior = prior8))
+
+    prior8$coef[4] <- "1|site"
+    suppressWarnings(g9p <- update(m2, prior = prior8))
+
+    expect_equal(getME(g8p, "theta"), getME(g9p, "theta"))
+})

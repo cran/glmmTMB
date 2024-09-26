@@ -12,7 +12,8 @@ library(blme)
 library(broom.mixed)
 library(purrr)
 library(dplyr)
-library(ggplot2); theme_set(theme_bw())
+library(ggplot2)
+theme_set(theme_bw())
 OkIt <- unname(palette.colors(n = 8, palette = "Okabe-Ito"))[-1]
 
 ## ----culcita_dat--------------------------------------------------------------
@@ -20,15 +21,17 @@ cdat <- readRDS(system.file("vignette_data", "culcita.rds", package = "glmmTMB")
 cdatx <- cdat[-20,]
 
 ## ----culcita_mod1-------------------------------------------------------------
-form <- predation~ttt+(1|block)
-cmod_glmer <- glmer(form, data=cdatx, family=binomial)
-cmod_glmmTMB <- glmmTMB(form, data=cdatx, family=binomial)
-cmod_bglmer <- bglmer(form, data=cdatx, family=binomial,
-                    fixef.prior = normal(cov = diag(9,4)))
+form <- predation~ttt + (1 | block)
+cmod_glmer <- glmer(form, data = cdatx, family = binomial)
+cmod_glmmTMB <- glmmTMB(form, data = cdatx, family = binomial)
+cmod_bglmer <- bglmer(form,
+  data = cdatx, family = binomial,
+  fixef.prior = normal(cov = diag(9, 4))
+)
 
 ## ----culcita_prior------------------------------------------------------------
 cprior <- data.frame(prior = rep("normal(0,3)", 2),
-                     class = rep("beta", 2),
+                     class = rep("fixef", 2),
                      coef = c("(Intercept)", ""))
 print(cprior)
 cmod_glmmTMB_p <- update(cmod_glmmTMB, priors = cprior)
@@ -42,28 +45,34 @@ stopifnot(all.equal(coef(summary(cmod_bglmer)),
 cmods <- ls(pattern = "cmod_[bg].*")
 cmod_list <- mget(cmods) |> setNames(gsub("cmod_", "", cmods))
 cres <- (purrr::map_dfr(cmod_list,
-                        ~tidy(., conf.int = TRUE, effects = "fixed"),
-                        .id = "model")
-    |> select(model, term, estimate, lwr = conf.low, upr = conf.high)
-    |> mutate(across(model,
-                     ~factor(., levels = c("glmer", "glmmTMB",
-                                           "glmmTMB_p", "bglmer"))))
+  ~ tidy(., conf.int = TRUE, effects = "fixed"),
+  .id = "model"
+)
+|> select(model, term, estimate, lwr = conf.low, upr = conf.high)
+  |> mutate(across(
+    model,
+    ~ factor(., levels = c(
+      "glmer", "glmmTMB",
+      "glmmTMB_p", "bglmer"
+    ))
+  ))
 )
 ggplot(cres, aes(x = estimate, y = term, colour = model)) +
-    geom_pointrange(aes(xmin = lwr, xmax = upr),
-                    position = position_dodge(width = 0.5))+
-    scale_colour_manual(values = OkIt)
+  geom_pointrange(aes(xmin = lwr, xmax = upr),
+    position = position_dodge(width = 0.5)
+  ) +
+  scale_colour_manual(values = OkIt)
 
 ## ----gophertortoise-----------------------------------------------------------
 gdat <- readRDS(system.file("vignette_data", "gophertortoise.rds", package = "glmmTMB"))
-form <- shells~prev+offset(log(Area))+factor(year)+(1|Site)
-gmod_glmer <- glmer(form , family=poisson, data=gdat)
-gmod_bglmer <- bglmer(form, family=poisson, data=gdat)
+form <- shells~prev + offset(log(Area)) + factor(year) + (1 | Site)
+gmod_glmer <- glmer(form, family = poisson, data = gdat)
+gmod_bglmer <- bglmer(form, family = poisson, data = gdat)
 ## cov.prior = gamma(shape = 2.5, rate = 0, common.scale = TRUE, posterior.scale = "sd"))
 gmod_glmmTMB <- glmmTMB(form, family = poisson, data = gdat) ## 1e-5
 ## bglmer default corresponds to gamma(Inf, 2.5)
 gprior <- data.frame(prior = "gamma(1e8, 2.5)",
-                     class = "theta",
+                     class = "ranef",
                      coef = "")
 gmod_glmmTMB_p <- update(gmod_glmmTMB, priors = gprior)
 vc1 <- c(VarCorr(gmod_glmmTMB_p)$cond$Site)

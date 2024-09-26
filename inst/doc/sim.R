@@ -35,7 +35,7 @@ ss_sim <- transform(sleepstudy,
                                             newdata = sleepstudy,
                                             family = gaussian,
                                             newparams = list(beta = c(250, 10),
-                                                        betad = 2*log(50)))[[1]])
+                                                        betadisp = 2*log(50)))[[1]])
 
 ## ----simlm--------------------------------------------------------------------
 ss_fit <- glmmTMB(Reaction ~ Days, sleepstudy)
@@ -56,7 +56,8 @@ ggplot(ss_comb, aes(x = Days, y = Reaction, colour = Subject)) +
 rho_to_theta <- function(rho) rho/sqrt(1-rho^2)
 ## tests
 stopifnot(all.equal(get_cor(rho_to_theta(-0.2)), -0.2))
-stopifnot(all.equal(rho_to_theta(-0.2), put_cor(matrix(c(1,-0.2,-0.2,1), 2))))
+## equivalent to general function
+stopifnot(all.equal(rho_to_theta(-0.2), put_cor(-0.2, input_val = "vec")))
 
 ## ----sim1---------------------------------------------------------------------
 n_id <- 10
@@ -77,7 +78,7 @@ sdvec <-  c(1.5,0.15)
 corval <- -0.2
 thetavec <- c(log(sdvec), rho_to_theta(corval))
 par1 <- list(beta = beta_vec,
-             betad = log(1),  ## log(theta)
+             betadisp = log(1),  ## log(theta)
              theta = thetavec)
 
 ## ----sim3---------------------------------------------------------------------
@@ -132,7 +133,7 @@ s2 <- simulate_new(~ ar1(times + 0 | group),
                    seed = 101,
                    newparams = list(
                        beta = 0,   
-                       betad = 0,
+                       betadisp = 0,
                        theta = c(0, phi_to_AR1(0.7)))
                    )[[1]]
 
