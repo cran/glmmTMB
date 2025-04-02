@@ -12,7 +12,7 @@
 
 <meta name="author" content="Kasper Kristensen and Maeve McGillycuddy" />
 
-<meta name="date" content="2024-09-26" />
+<meta name="date" content="2025-04-02" />
 
 <title>Covariance structures with glmmTMB</title>
 
@@ -120,11 +120,13 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Covariance structures with glmmTMB</h1>
 <h4 class="author">Kasper Kristensen and Maeve McGillycuddy</h4>
-<h4 class="date">2024-09-26</h4>
+<h4 class="date">2025-04-02</h4>
 
 
 <div id="TOC">
 <ul>
+<li><a href="#overview">overview</a></li>
+<li><a href="#overview-1">Overview</a></li>
 <li><a href="#the-ar1-covariance-structure">The AR(1) covariance structure</a><ul>
 <li><a href="#demonstration-on-simulated-data">Demonstration on simulated data</a></li>
 <li><a href="#increasing-the-sample-size">Increasing the sample size</a></li>
@@ -147,21 +149,26 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <li><a href="#generalized-latent-variable-model">Generalized latent variable model</a><ul>
 <li><a href="#reduced-rank">Reduced-rank</a></li>
 </ul></li>
-<li><a href="#proptional">Proptional</a></li>
+<li><a href="#proportional">Proportional</a></li>
 <li><a href="#construction-of-structured-covariance-matrices">Construction of structured covariance matrices</a></li>
 <li><a href="#references">References</a></li>
 </ul>
 </div>
 
-<p>This vignette demonstrates some of the covariance structures available in the <code>glmmTMB</code> package. Currently the available covariance structures are:</p>
+<div id="overview" class="section level2">
+<h2>overview</h2>
+</div>
+<div id="overview-1" class="section level2">
+<h2>Overview</h2>
+<p>This vignette demonstrates some of the covariance structures available in the <code>glmmTMB</code> package. The currently available covariance structures are:</p>
 <!-- not sure why |x| for abs value isn't working in MathJax/LateX within kable table ... -->
-<table style="width:100%;">
+<table>
 <colgroup>
-<col width="19%"></col>
-<col width="5%"></col>
-<col width="7%"></col>
+<col width="18%"></col>
+<col width="4%"></col>
+<col width="6%"></col>
 <col width="12%"></col>
-<col width="55%"></col>
+<col width="58%"></col>
 </colgroup>
 <thead>
 <tr class="header">
@@ -185,83 +192,91 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <td align="left"><code>toep</code></td>
 <td align="left"><span class="math inline">\(2n-1\)</span></td>
 <td align="left"></td>
-<td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlations <span class="math inline">\(\rho_k = \theta_{n+k}/\sqrt{1+\theta_{n+k}^2}\)</span>, <span class="math inline">\(k = \textrm{abs}(i-j+1)\)</span></td>
+<td align="left">log-standard deviations (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlations <span class="math inline">\(\rho_k = \theta_{n+k}/\sqrt{1+\theta_{n+k}^2}\)</span>, <span class="math inline">\(k = \textrm{abs}(i-j+1)\)</span></td>
 </tr>
 <tr class="odd">
 <td align="left">Het. compound symmetry</td>
 <td align="left"><code>cs</code></td>
 <td align="left"><span class="math inline">\(n+1\)</span></td>
 <td align="left"></td>
-<td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlation <span class="math inline">\(\rho = \theta_{n+1}/\sqrt{1+\theta_{n+1}^2}\)</span></td>
+<td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlation <span class="math inline">\(\{a=1/(n-1); \rho = \textrm{plogis}(\theta_{n+1}) \cdot (1+a) -a \}\)</span></td>
 </tr>
 <tr class="even">
+<td align="left">Homogeneous compound symmetry</td>
+<td align="left"><code>homcs</code></td>
+<td align="left"><span class="math inline">\(2\)</span></td>
+<td align="left"></td>
+<td align="left">log-SD (<span class="math inline">\(\theta_1\)</span>); correlation <span class="math inline">\(\{a=1/(n-1); \rho = \textrm{plogis}(\theta_{2}) \cdot (1+a) -a \}\)</span></td>
+</tr>
+<tr class="odd">
 <td align="left">Homogenous diagonal</td>
 <td align="left"><code>homdiag</code></td>
 <td align="left"><span class="math inline">\(1\)</span></td>
 <td align="left"></td>
 <td align="left">log-SD</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Het. diagonal</td>
 <td align="left"><code>diag</code></td>
 <td align="left"><span class="math inline">\(n\)</span></td>
 <td align="left"></td>
 <td align="left">log-SDs</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">AR(1)</td>
 <td align="left"><code>ar1</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Unit spaced levels</td>
 <td align="left">log-SD; <span class="math inline">\(\rho = \left(\theta_2/\sqrt{1+\theta_2^2}\right)^{d_{ij}}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Ornstein-Uhlenbeck</td>
 <td align="left"><code>ou</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-OU rate (<span class="math inline">\(\rho = \exp(-\exp(\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Spatial exponential</td>
 <td align="left"><code>exp</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Spatial Gaussian</td>
 <td align="left"><code>gau</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-2\theta_2) d_{ij}^2\)</span>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Spatial Matèrn</td>
 <td align="left"><code>mat</code></td>
 <td align="left"><span class="math inline">\(3\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD, log-range, log-shape (power)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Reduced-rank</td>
 <td align="left"><code>rr</code></td>
 <td align="left"><span class="math inline">\(nd-d(d-1)/2\)</span></td>
 <td align="left">rank (d)</td>
-<td align="left"></td>
+<td align="left">Factor loading matrix (see <a href="#reduced-rank">Reduced-rank</a>)</td>
 </tr>
-<tr class="even">
-<td align="left">Proptional</td>
+<tr class="odd">
+<td align="left">Proportional</td>
 <td align="left"><code>propto</code></td>
 <td align="left"><span class="math inline">\(1\)</span></td>
 <td align="left">Variance-covariance matrix</td>
-<td align="left"></td>
+<td align="left">log(proportionality constant)</td>
 </tr>
 </tbody>
 </table>
-<p>The word 'heterogeneous' refers to the marginal variances of the model.</p>
+<p>The word 'heterogeneous' refers to the marginal variances of the model; <span class="math inline">\(\textrm{plogis}(x) = (1+\exp(-x))^{-1}\)</span></p>
 <p>Homogenous versions of some structures (e.g. Toeplitz, compound symmetric) can be implemented by using the <code>map</code> argument to set all log-SD parameters equal to each other.</p>
 <p>Some of the structures require temporal or spatial coordinates. We will show examples in a later section.</p>
+</div>
 <div id="the-ar1-covariance-structure" class="section level2">
 <h2>The AR(1) covariance structure</h2>
 <div id="demonstration-on-simulated-data" class="section level3">
@@ -459,7 +474,7 @@ volcano.data[<span class="kw">cbind</span>(d<span class="op">$</span>x, d<span c
 <span class="kw">image</span>(volcano.data, <span class="dt">main=</span><span class="st">&quot;Spatial data&quot;</span>, <span class="dt">useRaster=</span><span class="ot">TRUE</span>)</code></pre></div>
 <!-- evaluate if NOT_CRAN -->
 <!-- always evaluate -->
-<p><img src="data:image/png;base64,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" width="480" /></p>
+<p><img src="data:image/png;base64,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" width="480" /></p>
 <p>Based on this data, we'll attempt to re-construct the original image.</p>
 <p>As model, it is assumed that the original image <code>image(volcano)</code> is a realization of a random field with correlation decaying exponentially with distance between pixels.</p>
 <p>Denoting by <span class="math inline">\(u(x,y)\)</span> this random field the model for the observations is</p>
@@ -547,7 +562,7 @@ g(\boldsymbol{\mu}) &amp;= \boldsymbol{X\beta} + \boldsymbol{Z(I_n \otimes \Lamb
 <!-- -->
 <p>where <span class="math inline">\(\otimes\)</span> is the Kronecker product and <span class="math inline">\(\boldsymbol{\Lambda} = (\boldsymbol{\lambda_1}, \ldots, \boldsymbol{\lambda_d})'\)</span> is the <span class="math inline">\(q \times d\)</span> matrix of factor loadings (with <span class="math inline">\(d \ll q\)</span>). The upper triangular elements of <span class="math inline">\(\boldsymbol{\Lambda}\)</span> are set to be zero to ensure parameter identifiability. Here we assume that the latent variables follow a multivariate standard normal distribution, <span class="math inline">\(\boldsymbol{b} \sim N(\boldsymbol{0}, \boldsymbol{I})\)</span>.</p>
 <p>For GLVMs it is important to select initial starting values for the parameters because the observed likelihood may be multimodal, and maximization algorithms can end up in local maxima. <span class="citation">Niku et al. (2019)</span> describe methods to enable faster and more reliable fits of latent variable models by carefully choosing starting values of the parameters.</p>
-<p>A similar method has been implemented in <code>glmmTMB</code>. A generalized linear model is fitted to the data to obtain initial starting values for the fixed parameters in the model. Residuals from the fitted GLM are calculated; Dunn-Smyth residuals are calculated for common families while residuals from the <code>dev.resids()</code> function are used otherwise. Initial starting values for the latent variables and their loadings are obtained by fitting a reduced rank model to the residuals.</p>
+<p>A similar method has been implemented in <code>glmmTMB</code> <span class="citation">(McGillycuddy et al., n.d.)</span>. A generalized linear model is fitted to the data to obtain initial starting values for the fixed parameters in the model. Residuals from the fitted GLM are calculated; Dunn-Smyth residuals are calculated for common families while residuals from the <code>dev.resids()</code> function are used otherwise. Initial starting values for the latent variables and their loadings are obtained by fitting a reduced rank model to the residuals.</p>
 <div id="reduced-rank" class="section level3">
 <h3>Reduced-rank</h3>
 <p>One of our main motivations for adding this variance-covariance structure is to enable the analysis of multivariate abundance data, for example to model the abundance of different taxa across multiple sites. Typically an unstructured random effect is assumed to account for correlation between taxa; however the number of parameters required quickly becomes large with increasing numbers of taxa. A GLVM is a flexible and more parsimonious way to account for correlation so that one can fit a joint model across many taxa.</p>
@@ -601,22 +616,24 @@ sp_names &lt;-<span class="st"> </span><span class="kw">abbreviate</span>(<span 
 <span class="kw">text</span>(rr_info<span class="op">$</span>fl[,<span class="dv">1</span>], rr_info<span class="op">$</span>fl[,<span class="dv">2</span>], sp_names, <span class="dt">pos =</span> <span class="dv">3</span>, <span class="dt">col =</span> <span class="dv">2</span>)</code></pre></div>
 </div>
 </div>
-<div id="proptional" class="section level2">
-<h2>Proptional</h2>
+<div id="proportional" class="section level2">
+<h2>Proportional</h2>
 <p>The random effect structure <code>propto</code> fits multivariate random effects proportional to a known variance-covariance matrix. One way the <code>propto</code> structure can be used is in phylogenetic analysis where a random effect proportional to a phylogenetic variance-covariance matrix aims to account for the correlation across species due to their shared ancestry. For example, the <code>carni70</code> data set from the <code>ade4</code> package describes the phylogeny along with the geographic range and body size of 70 carnivora. To account for the dependence among species due to shared ancestral history we can include a phylogenetically structured error term in the model via the <code>propto</code> structure as follows:</p>
-<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">require</span>(ade4)
-<span class="kw">require</span>(ape)
-<span class="kw">data</span>(carni70)
-carnidat &lt;-<span class="st"> </span><span class="kw">data.frame</span>(<span class="dt">species =</span> <span class="kw">rownames</span>(carni70<span class="op">$</span>tab), carni70<span class="op">$</span>tab)
-tree &lt;-<span class="st"> </span><span class="kw">read.tree</span>(<span class="dt">text=</span>carni70<span class="op">$</span>tre)
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">library</span>(ape)
+<span class="kw">data</span>(carni70, <span class="dt">package =</span> <span class="st">&quot;ade4&quot;</span>)
+tree &lt;-<span class="st"> </span><span class="kw">read.tree</span>(<span class="dt">text =</span> carni70<span class="op">$</span>tre)
 phylo_varcov &lt;-<span class="st"> </span><span class="kw">vcv</span>(tree)<span class="co"># phylogenetic variance-covariance matrix</span>
-<span class="co"># row/column names of phylo_varcov must match factor levels in data</span>
-<span class="kw">rownames</span>(phylo_varcov) &lt;-<span class="st"> </span><span class="kw">colnames</span>(<span class="kw">rownames</span>(phylo_varcov)) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;.&quot;</span>, <span class="st">&quot;_&quot;</span>, <span class="kw">rownames</span>(phylo_varcov)) 
-carnidat<span class="op">$</span>dummy &lt;-<span class="st"> </span><span class="kw">factor</span>(<span class="dv">1</span>) <span class="co"># a dummy grouping variable must be added to the dataset</span>
-
-fit_phylo &lt;-<span class="st"> </span><span class="kw">glmmTMB</span>(<span class="kw">log</span>(range) <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(size) <span class="op">+</span><span class="st"> </span><span class="kw">propto</span>(<span class="dv">0</span> <span class="op">+</span><span class="st"> </span>species <span class="op">|</span><span class="st"> </span>dummy, phylo_varcov),
+## row/column names of phylo_varcov must match factor levels in data
+## (punctuation/separators in species names and ordering)
+spnames &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;_&quot;</span>, <span class="st">&quot;.&quot;</span>, <span class="kw">rownames</span>(carni70<span class="op">$</span>tab))
+carnidat &lt;-<span class="st"> </span><span class="kw">data.frame</span>(
+    <span class="dt">species =</span> <span class="kw">factor</span>(spnames, <span class="dt">levels =</span> <span class="kw">rownames</span>(phylo_varcov)),
+    <span class="dt">dummy =</span> <span class="kw">factor</span>(<span class="dv">1</span>),
+    carni70<span class="op">$</span>tab)
+fit_phylo &lt;-<span class="st"> </span><span class="kw">glmmTMB</span>(<span class="kw">log</span>(range) <span class="op">~</span><span class="st"> </span><span class="kw">log</span>(size) <span class="op">+</span>
+<span class="st">                         </span><span class="kw">propto</span>(<span class="dv">0</span> <span class="op">+</span><span class="st"> </span>species <span class="op">|</span><span class="st"> </span>dummy, phylo_varcov),
                      <span class="dt">data =</span> carnidat)</code></pre></div>
-<p><code>dummy</code> is a dummy variable equal to one for all observations to specify that all observations belong to the same cluster. The intercept term is excluded from the proportional random effect -- this is to ensure that each random effect corresponds to the effect for its corresponding species. It is important that the row/columns names of the matrix match the terms in the random effect (see <a href="#construction-of-structured-covariance-matrices">Construction of structured covariance matrices</a> for how the terms are constructed).</p>
+<p><code>dummy</code> is a dummy variable equal to one for all observations to specify that all observations belong to the same cluster. The intercept term is excluded from the proportional random effect -- this is to ensure that each random effect corresponds to the effect for its corresponding species. It is important that the row/column names of the matrix match the terms in the random effect (i.e. the same values, in the same order). In particular, this typically means that the <em>levels of the varying factor</em> (species, in the case of a phylogenetic model) should match the row/column names of the covariance matrix. Something like <code>data$species &lt;- factor(data$species, levels = rownames(covmat))</code> should generally work. See <a href="#construction-of-structured-covariance-matrices">Construction of structured covariance matrices</a> for how the terms are constructed).</p>
 </div>
 <div id="construction-of-structured-covariance-matrices" class="section level2">
 <h2>Construction of structured covariance matrices</h2>
@@ -712,6 +729,9 @@ fit_phylo &lt;-<span class="st"> </span><span class="kw">glmmTMB</span>(<span cl
 <div id="refs" class="references">
 <div id="ref-hui2015model">
 <p>Hui, Francis KC, Sara Taskinen, Shirley Pledger, Scott D Foster, and David I Warton. 2015. “Model-Based Approaches to Unconstrained Ordination.” <em>Methods in Ecology and Evolution</em> 6 (4): 399–411. doi:<a href="https://doi.org/10.1111/2041-210X.12236">10.1111/2041-210X.12236</a>.</p>
+</div>
+<div id="ref-mcgillycuddyParsimoniously2024">
+<p>McGillycuddy, Maeve, David I. Warton, Gordana Popovic, and Benjamin M. Bolker. n.d. “Parsimoniously Fitting Large Multivariate Random Effects in glmmTMB.” arXiv. <a href="https://arxiv.org/abs/2411.04411" class="uri">https://arxiv.org/abs/2411.04411</a>.</p>
 </div>
 <div id="ref-niku2019gllvm">
 <p>Niku, Jenni, Francis K. C. Hui, Sara Taskinen, and David I. Warton. 2019. “Gllvm: Fast Analysis of Multivariate Abundance Data with Generalized Linear Latent Variable Models in R.” <em>Methods in Ecology and Evolution</em> 10 (12): 2173–82. doi:<a href="https://doi.org/10.1111/2041-210X.13303">10.1111/2041-210X.13303</a>.</p>

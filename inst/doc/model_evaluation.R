@@ -47,22 +47,11 @@ owls_nb1 <- glmmTMB(SiblingNegotiation ~ FoodTreatment*SexParent +
                     family = nbinom1,
                     zi = ~1, data=Owls)
 
-## ----fit_model3,cache=TRUE----------------------------------------------------
-data("cbpp",package="lme4")
-cbpp_b1 <- glmmTMB(incidence/size~period+(1|herd),
-                   weights=size,family=binomial,
-                   data=cbpp)
-## simulated three-term Beta example
-set.seed(1001)
-dd <- data.frame(z=rbeta(1000,shape1=2,shape2=3),
-                 a=rnorm(1000),b=rnorm(1000),c=rnorm(1000))
-simex_b1 <- glmmTMB(z~a*b*c,family=beta_family,data=dd)
-
 ## ----dharma_sim,eval=FALSE,message=FALSE--------------------------------------
-#  owls_nb1_simres <- simulateResiduals(owls_nb1)
+# owls_nb1_simres <- simulateResiduals(owls_nb1)
 
 ## ----fake_dharma_plotfig, eval=FALSE------------------------------------------
-#  plot(owls_nb1_simres)
+# plot(owls_nb1_simres)
 
 ## ----dharma_plotfig,fig.width=8,fig.height=4, echo=FALSE----------------------
 if (require(DHARMa, quietly = TRUE)) plot(owls_nb1_simres)
@@ -98,9 +87,6 @@ emmeans(owls_hnb1, ~ FoodTreatment * SexParent, component = "cmean")
 
 ## ----emmeans3-----------------------------------------------------------------
 emmeans(owls_hnb1, ~ FoodTreatment * SexParent, component = "response")
-
-## ----drop1_eval,cache=TRUE----------------------------------------------------
-system.time(owls_nb1_d1 <- drop1(owls_nb1,test="Chisq"))
 
 ## ----print_drop1--------------------------------------------------------------
 print(owls_nb1_d1)
@@ -146,9 +132,9 @@ pxt <- function(x,title) {
 
 
 ## ----xtable_sum,eval=FALSE----------------------------------------------------
-#  pxt(lme4::formatVC(ss$varcor$cond),"random effects variances")
-#  pxt(coef(ss)$cond,"conditional fixed effects")
-#  pxt(coef(ss)$zi,"conditional zero-inflation effects")
+# pxt(lme4::formatVC(ss$varcor$cond),"random effects variances")
+# pxt(coef(ss)$cond,"conditional fixed effects")
+# pxt(coef(ss)$zi,"conditional zero-inflation effects")
 
 ## ----xtable_sum_real,results="asis",echo=FALSE--------------------------------
 if (requireNamespace("xtable")) {
@@ -185,9 +171,9 @@ if (!huxtable_OK) {
 source(system.file("other_methods","influence_mixed.R", package="glmmTMB"))
 
 ## ----infl, eval=FALSE---------------------------------------------------------
-#  owls_nb1_influence_time <- system.time(
-#    owls_nb1_influence <- influence_mixed(owls_nb1, groups="Nest")
-#  )
+# owls_nb1_influence_time <- system.time(
+#   owls_nb1_influence <- influence_mixed(owls_nb1, groups="Nest")
+# )
 
 ## ----plot_infl----------------------------------------------------------------
 car::infIndexPlot(owls_nb1_influence)

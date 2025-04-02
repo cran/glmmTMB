@@ -55,8 +55,6 @@ test_that("new levels in AR1 (OK)", {
                    "Predicting new random effect levels")
 })
 
-context("Predict two-column response case")
-
 test_that("two-column response", {
     skip_on_cran()
     fm <- glmmTMB( cbind(count,4) ~ mined, family=betabinomial,
@@ -522,4 +520,19 @@ test_that("weights with attributes are OK", {
     p <- predict(m, newdata = d, re.form = NULL)
     expect_equal(head(p),
                  c(3.35535960506176, 4.98184089632094, 5.50821757779119))
+})
+
+test_that("pearson resids of ZI models", {
+    if (requireNamespace("pscl")) {
+        data(bioChemists, package = "pscl")
+        m <- glmmTMB::glmmTMB(
+                          art ~ fem + mar + kid5 + ment,
+                          ziformula = ~ kid5 + phd,
+                          family = poisson(),
+                          data = bioChemists
+                      )
+        expect_equal(sum(residuals(m, type = "pearson")^2),
+                     1258.55399982061)
+
+    }
 })

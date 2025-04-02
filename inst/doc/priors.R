@@ -110,21 +110,21 @@ ggplot(gres, aes(x = estimate, y = model)) +
                     position = position_dodge(width = 0.5))
 
 ## ----deps, eval = FALSE-------------------------------------------------------
-#  	
-#  	rd <- \(x) tools::package_dependencies("brms", recursive = TRUE)[[x]]
-#  ## rd <- \(x) packrat:::recursivePackageDependencies(x, ignores = "", lib.loc =    .libPaths()[1])
-#  ## not sure why packrat and tools get different answers, but difference
-#  ## doesn't matter much
-#  brms_dep <- rd("brms")
-#  glmmTMB_dep <- rd("glmmTMB")
-#  length(setdiff(brms_dep, glmmTMB_dep))
+# 	
+# 	rd <- \(x) tools::package_dependencies("brms", recursive = TRUE)[[x]]
+# ## rd <- \(x) packrat:::recursivePackageDependencies(x, ignores = "", lib.loc =    .libPaths()[1])
+# ## not sure why packrat and tools get different answers, but difference
+# ## doesn't matter much
+# brms_dep <- rd("brms")
+# glmmTMB_dep <- rd("glmmTMB")
+# length(setdiff(brms_dep, glmmTMB_dep))
 
 ## ----brms_priors, eval = FALSE------------------------------------------------
-#  ## requires brms to evaluate, wanted to avoid putting it in Suggests: ...
-#  bprior <- c(prior_string("normal(0,10)", class = "b"),
-#              prior(normal(1,2), class = b, coef = treat),
-#              prior_(~cauchy(0,2), class = ~sd,
-#                     group = ~subject, coef = ~Intercept))
+# ## requires brms to evaluate, wanted to avoid putting it in Suggests: ...
+# bprior <- c(prior_string("normal(0,10)", class = "b"),
+#             prior(normal(1,2), class = b, coef = treat),
+#             prior_(~cauchy(0,2), class = ~sd,
+#                    group = ~subject, coef = ~Intercept))
 
 ## ----fake_brms_priors, echo = FALSE-------------------------------------------
 bprior <- structure(list(prior = c("normal(0,10)", "normal(1, 2)", "cauchy(0, 2)"

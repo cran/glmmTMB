@@ -32,8 +32,10 @@ make_family <- function(x, link, needs_nonneg = FALSE, needs_int = FALSE) {
         x <- c(x,list(aic=function(...) NA_real_))
     }
     if (is.null(x$initialize)) {
-        x <- c(x,list(initialize=
-                          substitute(env = list(FAMILY=x$family),
+        x <- c(x, list(initialize=
+                           substitute(env = list(FAMILY=x$family,
+                                                 needs_nonneg = needs_nonneg,
+                                                 needs_int = needs_int),
             expr = expression({
             ## should handle log-links adequately
             mustart <- y+0.1
@@ -50,6 +52,10 @@ make_family <- function(x, link, needs_nonneg = FALSE, needs_int = FALSE) {
                 }
             }
             }))))
+        ## strip one layer of protection
+        ##   str == 'language expression ...' -> 'expression ...'
+        x$initialize <- eval(x$initialize)
+
     }
         
     if (is.null(x$dev.resids)) {
@@ -115,7 +121,11 @@ get_nbinom_disp <- function(disp, pname1 = ".Theta", pname2 = "theta") {
 ##' predicted variance (scaled by \code{sigma(.)})
 ##' }
 ##' @details
-##' If specified, the dispersion model uses a log link. Denoting the variance as \eqn{V}, the dispersion parameter
+##' If specified, the dispersion model uses a log link; additional family parameters
+##' (Student-t df, Tweedie power parameters, ordered beta cutpoints,
+##' skew-normal skew parameters, etc.) use various link functions and
+##' are accessible via \code{\link{family_params}}.
+##' Denoting the variance as \eqn{V}, the dispersion parameter
 ##' as \eqn{\phi=\exp(\eta)}{phi=exp(eta)} (where \eqn{\eta}{eta} is the linear predictor from the dispersion model),
 ##' and the predicted mean as \eqn{\mu}{mu}:
 ##'  \describe{
@@ -131,7 +141,7 @@ get_nbinom_disp <- function(disp, pname1 = ".Theta", pname2 = "theta") {
 ##'      \item{beta}{Beta distribution: parameterization of Ferrari and Cribari-Neto (2004)
 ##' and the \pkg{betareg} package (Cribari-Neto and Zeileis 2010); \eqn{V=\mu(1-\mu)/(\phi+1)}{V=mu*(1-mu)/(phi+1)}}
 ##'     \item{betabinomial}{Beta-binomial distribution: parameterized according to Morris (1997). \eqn{V=\mu(1-\mu)(n(\phi+n)/(\phi+1))}{V=mu*(1-mu)*(n*(phi+n)/(phi+1))}}
-##'      \item{tweedie}{Tweedie distribution: \eqn{V=\phi\mu^power}{V=phi*mu^power}. The power parameter is restricted to the interval \eqn{1<power<2}, i.e. the compound Poisson-gamma distribution. Code taken from the \code{tweedie} package, written by Peter Dunn. The power parameter (designated \code{psi} in the list of parameters) uses the link function \code{qlogis(psi-1.0)}; thus one can fix the power parameter to a specified value using \code{start = list(psi = qlogis(fixed_power-1.0)), map = list(psi = factor(NA))}.}
+##'      \item{tweedie}{Tweedie distribution: \eqn{V=\phi\mu^{power}}{V=phi*mu^power}. The power parameter is restricted to the interval \eqn{1<power<2}, i.e. the compound Poisson-gamma distribution. Code taken from the \code{tweedie} package, written by Peter Dunn. The power parameter (designated \code{psi} in the list of parameters) uses the link function \code{qlogis(psi-1.0)}; thus one can fix the power parameter to a specified value using \code{start = list(psi = qlogis(fixed_power-1.0)), map = list(psi = factor(NA))}.}
 ##'      \item{t_family}{Student-t distribution with adjustable scale and location parameters (also called a \href{https://en.wikipedia.org/wiki/Pearson_distribution#The_Pearson_type_VII_distribution}{Pearson type VII distribution}). The shape (degrees of freedom parameter) is fitted with a log link; it may be often be useful to fix the shape parameter using \code{start = list(psi = log(fixed_df)), map = list(psi = factor(NA))}.}
 ##'      \item{ordbeta}{Ordered beta regression from Kubinec (2022); fits continuous (e.g. proportion) data in the \emph{closed} interval [0,1]. Unlike the implementation in the \code{ordbeta} package, this family will not automatically scale the data. If your response variable is defined on the closed interval [a,b], transform it to [0,1] via \code{y_scaled <- (y-a)/(b-a)}.}
 ##'      \item{lognormal}{Log-normal, parameterized by the mean and standard deviation \emph{on the data scale}}
@@ -200,6 +210,17 @@ nbinom1 <- function(link="log") {
                   return(2 * wt * (y * log(pmax(1, y)/mu) - (y + theta) * log((y + theta)/(mu + theta))))
               })
     return(make_family(r,link))
+}
+
+#' @export
+#' @rdname nbinom2
+nbinom12 <- function(link="log") {
+    r <- list(family="nbinom12",
+              variance = function(mu, phi, psi) {
+                  return(mu*(1+phi + mu/psi))
+              }
+              )
+    return(make_family(r,link, needs_nonneg = TRUE, needs_int = TRUE))
 }
 
 #' @rdname nbinom2
@@ -460,17 +481,6 @@ ordbeta <- function(link="logit") {
               variance=function(mu) { warning("ordbeta variance function untested"); mu*(1-mu) }
               )
     return(make_family(r,link))
-}
-
-#' @export
-#' @rdname nbinom2
-nbinom12 <- function(link="log") {
-    r <- list(family="nbinom12",
-              variance = function(mu, phi, psi) {
-                  return(mu*(1+phi + mu/psi))
-              }
-              )
-    return(make_family(r,link, needs_nonneg = TRUE, needs_int = TRUE))
 }
 
 #' @export

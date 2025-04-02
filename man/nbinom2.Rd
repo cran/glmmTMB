@@ -4,6 +4,7 @@
 \alias{nbinom2}
 \alias{family_glmmTMB}
 \alias{nbinom1}
+\alias{nbinom12}
 \alias{compois}
 \alias{truncated_compois}
 \alias{genpois}
@@ -19,13 +20,14 @@
 \alias{ziGamma}
 \alias{t_family}
 \alias{ordbeta}
-\alias{nbinom12}
 \alias{bell}
 \title{Family functions for glmmTMB}
 \usage{
 nbinom2(link = "log")
 
 nbinom1(link = "log")
+
+nbinom12(link = "log")
 
 compois(link = "log")
 
@@ -57,8 +59,6 @@ t_family(link = "identity")
 
 ordbeta(link = "logit")
 
-nbinom12(link = "log")
-
 bell(link = "log")
 }
 \arguments{
@@ -77,7 +77,11 @@ predicted variance (scaled by \code{sigma(.)})
 Family functions for glmmTMB
 }
 \details{
-If specified, the dispersion model uses a log link. Denoting the variance as \eqn{V}, the dispersion parameter
+If specified, the dispersion model uses a log link; additional family parameters
+(Student-t df, Tweedie power parameters, ordered beta cutpoints,
+skew-normal skew parameters, etc.) use various link functions and
+are accessible via \code{\link{family_params}}.
+Denoting the variance as \eqn{V}, the dispersion parameter
 as \eqn{\phi=\exp(\eta)}{phi=exp(eta)} (where \eqn{\eta}{eta} is the linear predictor from the dispersion model),
 and the predicted mean as \eqn{\mu}{mu}:
  \describe{
@@ -93,7 +97,7 @@ and the predicted mean as \eqn{\mu}{mu}:
      \item{beta}{Beta distribution: parameterization of Ferrari and Cribari-Neto (2004)
 and the \pkg{betareg} package (Cribari-Neto and Zeileis 2010); \eqn{V=\mu(1-\mu)/(\phi+1)}{V=mu*(1-mu)/(phi+1)}}
     \item{betabinomial}{Beta-binomial distribution: parameterized according to Morris (1997). \eqn{V=\mu(1-\mu)(n(\phi+n)/(\phi+1))}{V=mu*(1-mu)*(n*(phi+n)/(phi+1))}}
-     \item{tweedie}{Tweedie distribution: \eqn{V=\phi\mu^power}{V=phi*mu^power}. The power parameter is restricted to the interval \eqn{1<power<2}, i.e. the compound Poisson-gamma distribution. Code taken from the \code{tweedie} package, written by Peter Dunn. The power parameter (designated \code{psi} in the list of parameters) uses the link function \code{qlogis(psi-1.0)}; thus one can fix the power parameter to a specified value using \code{start = list(psi = qlogis(fixed_power-1.0)), map = list(psi = factor(NA))}.}
+     \item{tweedie}{Tweedie distribution: \eqn{V=\phi\mu^{power}}{V=phi*mu^power}. The power parameter is restricted to the interval \eqn{1<power<2}, i.e. the compound Poisson-gamma distribution. Code taken from the \code{tweedie} package, written by Peter Dunn. The power parameter (designated \code{psi} in the list of parameters) uses the link function \code{qlogis(psi-1.0)}; thus one can fix the power parameter to a specified value using \code{start = list(psi = qlogis(fixed_power-1.0)), map = list(psi = factor(NA))}.}
      \item{t_family}{Student-t distribution with adjustable scale and location parameters (also called a \href{https://en.wikipedia.org/wiki/Pearson_distribution#The_Pearson_type_VII_distribution}{Pearson type VII distribution}). The shape (degrees of freedom parameter) is fitted with a log link; it may be often be useful to fix the shape parameter using \code{start = list(psi = log(fixed_df)), map = list(psi = factor(NA))}.}
      \item{ordbeta}{Ordered beta regression from Kubinec (2022); fits continuous (e.g. proportion) data in the \emph{closed} interval [0,1]. Unlike the implementation in the \code{ordbeta} package, this family will not automatically scale the data. If your response variable is defined on the closed interval [a,b], transform it to [0,1] via \code{y_scaled <- (y-a)/(b-a)}.}
      \item{lognormal}{Log-normal, parameterized by the mean and standard deviation \emph{on the data scale}}

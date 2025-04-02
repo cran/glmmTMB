@@ -77,7 +77,11 @@ enum valid_covStruct {
   toep_covstruct = 8,
   rr_covstruct = 9,
   homdiag_covstruct = 10,
-  propto_covstruct = 11
+  propto_covstruct = 11,
+  // should perhaps be next to homdiag but don't want to mess
+  //  up interpretation of stored fits ...
+  hetar1_covstruct = 12,
+  homcs_covstruct = 13
 };
 
 // should probably be named just 'predictCode';
@@ -154,6 +158,38 @@ Type inverse_linkfun(Type eta, int link) {
     ans = exp(eta)*exp(exp(eta));
     break;
 
+    // TODO: Implement remaining links
+  default:
+    error("Link not implemented!");
+  } // End switch
+  return ans;
+}
+
+template<class Type>
+Type linkfun(Type mu, int link) {
+  Type ans;
+  switch (link) {
+  case log_link:
+    ans = log(mu);
+    break;
+  case identity_link:
+    ans = mu;
+    break;
+  case logit_link:
+    ans = logit(mu);
+    break;
+  case probit_link:
+    ans = qnorm(mu);
+    break;
+  case cloglog_link:
+    ans = log(-log(Type(1)-mu));
+    break;
+  case inverse_link:
+    ans = Type(1) / mu;
+    break;
+  case sqrt_link:
+    ans = sqrt(mu);
+    break;
     // TODO: Implement remaining links
   default:
     error("Link not implemented!");
@@ -383,11 +419,19 @@ Type termwise_nll(array<Type> &U, vector<Type> theta, per_term_info<Type>& term,
     term.corr = nldens.cov(); // For report
     term.sd = sd;             // For report
   }
-  else if (term.blockCode == cs_covstruct){
+  else if (term.blockCode == cs_covstruct || term.blockCode == homcs_covstruct) {
     // case: cs_covstruct
     int n = term.blockSize;
-    vector<Type> logsd = theta.head(n);
-    Type corr_transf = theta(n);
+    int nsd = (term.blockCode == cs_covstruct ? n : 1);
+    vector<Type> logsd(n);
+    for (int i = 0; i < n; i++) {
+      if (term.blockCode == cs_covstruct) {
+	logsd(i) = theta(i);
+      } else {
+	logsd(i) = theta(0);
+      }
+    }
+    Type corr_transf = theta(nsd);
     vector<Type> sd = exp(logsd);
     Type a = Type(1) / (Type(n) - Type(1));
     Type rho = invlogit(corr_transf) * (Type(1) + a) - a;
@@ -435,43 +479,58 @@ Type termwise_nll(array<Type> &U, vector<Type> theta, per_term_info<Type>& term,
     term.corr = nldens.cov(); // For report
     term.sd = sd;             // For report
   }
-  else if (term.blockCode == ar1_covstruct){
+  else if (term.blockCode == ar1_covstruct ||
+	   term.blockCode == hetar1_covstruct) {
     // case: ar1_covstruct
     //  * NOTE: Valid parameter space is phi in [-1, 1]
     //  * NOTE: 'times' not used as we assume unit distance between consecutive time points.
     int n = term.blockSize;
-    Type logsd = theta(0);
-    Type corr_transf = theta(1);
+    vector<Type> logsd = theta.head(term.blockNumTheta-1);
+    Type corr_transf = theta(term.blockNumTheta-1);
     Type phi = corr_transf / sqrt(1.0 + pow(corr_transf, 2));
-    Type sd = exp(logsd);
-    
+    vector<Type> sd = exp(logsd);
+    Type cursd;
     for(int j = 0; j < term.blockReps; j++){
-       for(int i=1; i<n; i++){
-          //Type phi = corr_transf / sqrt(1.0 + pow(corr_transf, 2));
-          ans -= dnorm(U(i, j), phi * U(i-1, j), sd * sqrt(1 - phi*phi), true);
-      }
-      ans -= dnorm(U(0, j), Type(0), sd, true);   // Initialize
+      ans -= dnorm(U(0, j), Type(0), sd(0), true);   // Initialize
       if (do_simulate) {
-        switch(term.simCode) {
+	switch(term.simCode) {
+	case fix_simcode:
+	  break;
+	case zero_simcode:
+	  U(0,j) = Type(0);
+	  break;
+	case random_simcode:
+	  U(0, j) = rnorm(Type(0), sd(0));
+	  break;
+	}
+      }
+      for(int i=1; i<n; i++){
+	if (term.blockCode == hetar1_covstruct) {
+	  cursd = sd(i-1);
+	} else {
+	  cursd = sd(0);
+	}
+	ans -= dnorm(U(i, j), phi * U(i-1, j), cursd * sqrt(1 - phi*phi), true);
+        if (do_simulate) {
+	  switch(term.simCode) {
           case fix_simcode:
           // do nothing, leave U values as is
-             break;
+	    break;
           case zero_simcode:
             for (int i=0; i < U.rows(); i++) {
               U(i,j) = Type(0);
-              };
+	    };
             break;
           case random_simcode:
-            U(0, j) = rnorm(Type(0), sd);
             for(int i=1; i<n; i++){
-              U(i, j) = rnorm( phi * U(i-1, j), sd * sqrt(1 - phi*phi) );
+              U(i, j) = rnorm( phi * U(i-1, j), cursd * sqrt(1 - phi*phi) );
               }
             break;
            default: error ("unknown simcode");
-           }
-      } // do_simulate
-  }
-  
+	  } // term.simCode
+	} // do_simulate
+      } // loop over lags
+    } // loop over blocks
   
     // For consistency with output for other structs we report entire
     // covariance matrix.
@@ -479,7 +538,11 @@ Type termwise_nll(array<Type> &U, vector<Type> theta, per_term_info<Type>& term,
       term.corr.resize(n,n);
       term.sd.resize(n);
       for(int i=0; i<n; i++){
-	term.sd(i) = sd;
+	if (term.blockCode == hetar1_covstruct) {
+	  term.sd(i) = sd(i);
+	} else {
+	  term.sd(i) = sd(0);
+	}
 	for(int j=0; j<n; j++){
 	  term.corr(i,j) = pow(phi, abs(i-j));
 	}
@@ -1221,6 +1284,22 @@ Type objective_function<Type>::operator() ()
   whichPredict -= 1; // R-index -> C-index
   vector<Type> mu_predict = mu(whichPredict);
   vector<Type> eta_predict = eta(whichPredict);
+
+  DATA_FACTOR(aggregate);
+  if (aggregate.size() > 0) {
+    if (aggregate.size() != mu_predict.size())
+      Rf_error("'aggregate' wrong size");
+    vector<Type> tmp(NLEVELS(aggregate));
+    tmp.setZero();
+    for (int i=0; i<aggregate.size(); i++) {
+      tmp[aggregate[i]] += mu_predict[i];
+    }
+    mu_predict = tmp;
+    for (int i=0; i<tmp.size(); i++) {
+      tmp[i] = linkfun(tmp[i], link);
+    }
+    eta_predict = tmp;
+  }
 
   REPORT(mu_predict);
   REPORT(eta_predict);

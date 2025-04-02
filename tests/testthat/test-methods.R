@@ -538,6 +538,12 @@ test_that("confint works for models with dispformula", {
     expect_equal(cc[grep("^disp",rownames(cc)),], ref_val, tolerance = 1e-6)
 })
 
+test_that("confint with theta_ for models with RE in dispformula", {
+    m <- glmmTMB(mpg ~ hp,
+                 dispformula = ~1 + (1|cyl), data = mtcars, family = gaussian)
+    expect_equal(rownames(confint(m, parm = "theta_")), "disp.Std.Dev.(Intercept)|cyl")
+})
+         
 simfun <- function(formula, family, data, beta=c(0,1)) {
     ss <- list(beta=beta)
     if (grepl("nbinom",family)) ss$betadisp <- 0
@@ -730,6 +736,36 @@ test_that("dunn-smyth residuals", {
                  tolerance = 1e-6)
 })
 
+test_that("profiling with mapped parameters", {
+    data("sleepstudy", package = "lme4")
+    m1 <- glmmTMB(Reaction ~ Days,
+                  data = sleepstudy,
+                  family = gaussian,
+                  map = list(beta = factor(c(NA, 1))),
+                  start = list(beta = c(250, 0)))
+
+    pp <- profile(m1)                         
+    expect_equal(dim(pp), c(50, 3))
+})
+
+test_that("vcov(full=TRUE) with non-NA mapped parameters", {
+    ## GH 1120
+    M0 <- suppressWarnings(
+        glmmTMB(
+            Reaction ~ Days + cs(0 + factor(Days) | Subject), dispformula = ~ 0, 
+            data = sleepstudy, REML = TRUE)
+    )
+    M0_map <- suppressWarnings(
+        update(M0,
+               map = list(theta = factor(c(rep(1, 10), 2))))
+    )
+    v0 <- vcov(M0, full = TRUE)
+    v1 <- vcov(M0_map, full = TRUE)
+    expect_identical(dim(v0), dim(v1))
+    expect_true(!any(is.na(v0)))
+    expect_equal(sum(is.na(v1)), 153L)
+})
+
 # This test started also giving a warning on os "mac".
 # test_that("bad inversion in vcov", {
 #     skip_on_os(c("windows", "linux"))
@@ -745,3 +781,13 @@ test_that("dunn-smyth residuals", {
 #         expect_true(all(is.na(vcov(m)$cond)))
 #     }
 # })
+
+test_that("handle empty betadisp in vcov", {
+    m <- glmmTMB(count ~ DOP, dispformula = ~ DOP,
+                 data = Salamanders,
+                 family = poisson)
+    expect_equal(lengths(fixef(m)),
+                 c(cond = 2L, zi = 0L, disp = 0L))
+    expect_equal(vcov(m)$disp,
+                 matrix(NA_real_, dimnames = list("disp~", "disp~")))
+})
