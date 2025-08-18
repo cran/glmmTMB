@@ -198,6 +198,30 @@ if (require(reshape2)) {
   print(gg_infl)
 }
 
+## ----sandwich1----------------------------------------------------------------
+vcovHC(owls_nb1)
+
+## ----sandwich3----------------------------------------------------------------
+summary(owls_nb1, sandwich = TRUE)
+
+## ----sandwich_emmeans---------------------------------------------------------
+emmeans(owls_nb1, ~ FoodTreatment * SexParent, vcov = vcovHC(owls_nb1))
+
+## ----sandwich_groups----------------------------------------------------------
+head(getGroups(owls_nb1))
+
+## ----sandwich_full------------------------------------------------------------
+vcovHC(owls_nb1, full = TRUE)
+
+## ----sandwich_reml_fails------------------------------------------------------
+try(vcovHC(update(owls_nb1, REML = TRUE)))
+
+## ----sandwich_warning---------------------------------------------------------
+tryCatch(
+  vcovHC(owls_nb1, cluster = Owls$SexParent),
+  warning = function(w) print(w)
+)
+
 ## ----save_out,echo=FALSE------------------------------------------------------
 ## store time-consuming stuff
 save("owls_nb1",

@@ -12,7 +12,7 @@
 
 <meta name="author" content="Kasper Kristensen and Maeve McGillycuddy" />
 
-<meta name="date" content="2025-04-02" />
+<meta name="date" content="2025-08-16" />
 
 <title>Covariance structures with glmmTMB</title>
 
@@ -120,13 +120,12 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Covariance structures with glmmTMB</h1>
 <h4 class="author">Kasper Kristensen and Maeve McGillycuddy</h4>
-<h4 class="date">2025-04-02</h4>
+<h4 class="date">2025-08-16</h4>
 
 
 <div id="TOC">
 <ul>
-<li><a href="#overview">overview</a></li>
-<li><a href="#overview-1">Overview</a></li>
+<li><a href="#overview">Overview</a></li>
 <li><a href="#the-ar1-covariance-structure">The AR(1) covariance structure</a><ul>
 <li><a href="#demonstration-on-simulated-data">Demonstration on simulated data</a></li>
 <li><a href="#increasing-the-sample-size">Increasing the sample size</a></li>
@@ -156,9 +155,6 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 </div>
 
 <div id="overview" class="section level2">
-<h2>overview</h2>
-</div>
-<div id="overview-1" class="section level2">
 <h2>Overview</h2>
 <p>This vignette demonstrates some of the covariance structures available in the <code>glmmTMB</code> package. The currently available covariance structures are:</p>
 <!-- not sure why |x| for abs value isn't working in MathJax/LateX within kable table ... -->
@@ -230,41 +226,48 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <td align="left">log-SD; <span class="math inline">\(\rho = \left(\theta_2/\sqrt{1+\theta_2^2}\right)^{d_{ij}}\)</span></td>
 </tr>
 <tr class="even">
+<td align="left">Het. AR(1)</td>
+<td align="left"><code>hetar1</code></td>
+<td align="left"><span class="math inline">\(n + 1\)</span></td>
+<td align="left">Unit spaced levels</td>
+<td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); <span class="math inline">\(\rho = \left(\theta_2/\sqrt{1+\theta_2^2}\right)^{d_{ij}}\)</span></td>
+</tr>
+<tr class="odd">
 <td align="left">Ornstein-Uhlenbeck</td>
 <td align="left"><code>ou</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-OU rate (<span class="math inline">\(\rho = \exp(-\exp(\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Spatial exponential</td>
 <td align="left"><code>exp</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Spatial Gaussian</td>
 <td align="left"><code>gau</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-2\theta_2) d_{ij}^2\)</span>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Spatial Matèrn</td>
 <td align="left"><code>mat</code></td>
 <td align="left"><span class="math inline">\(3\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD, log-range, log-shape (power)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Reduced-rank</td>
 <td align="left"><code>rr</code></td>
 <td align="left"><span class="math inline">\(nd-d(d-1)/2\)</span></td>
 <td align="left">rank (d)</td>
 <td align="left">Factor loading matrix (see <a href="#reduced-rank">Reduced-rank</a>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Proportional</td>
 <td align="left"><code>propto</code></td>
 <td align="left"><span class="math inline">\(1\)</span></td>

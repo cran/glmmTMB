@@ -3,37 +3,51 @@ library(glmmTMB)
 load(system.file("vignette_data", "troubleshooting.rda", package = "glmmTMB"))
 
 ## ----non-pos-def,cache=TRUE, warning=FALSE------------------------------------
-zinbm0 = glmmTMB(count~spp + (1|site), zi=~spp, Salamanders, family=nbinom2)
+zinbm0 <- glmmTMB(count~spp + (1|site), zi=~spp, Salamanders, family=nbinom2)
 
 ## ----fixef_zinbm0-------------------------------------------------------------
 fixef(zinbm0)
 
+## ----get_vals_zinbm0, echo = FALSE--------------------------------------------
+fezi <- fixef(zinbm0)
+zi_int <- round(fezi$zi[["(Intercept)"]])
+
 ## ----f_zi2--------------------------------------------------------------------
 ff <- fixef(zinbm0)$zi
-round(plogis(c(sppGP=unname(ff[1]),ff[-1]+ff[1])),3)
+signif(plogis(c(sppGP=unname(ff[1]),ff[-1]+ff[1])), 2)
 
 ## ----salfit2,cache=TRUE-------------------------------------------------------
 Salamanders <- transform(Salamanders, GP=as.numeric(spp=="GP"))
-zinbm0_A = update(zinbm0, ziformula=~GP)
+zinbm0_A <- update(zinbm0, ziformula=~GP)
 
 ## ----salfit2_coef,cache=TRUE--------------------------------------------------
 fixef(zinbm0_A)[["zi"]]
 
 ## ----salfit3,cache=TRUE-------------------------------------------------------
-zinbm0_B = update(zinbm0, ziformula=~(1|spp))
+zinbm0_B <- update(zinbm0, ziformula=~(1|spp))
 fixef(zinbm0_B)[["zi"]]
 VarCorr(zinbm0_B)
 
-## ----zinbm1,cache=TRUE--------------------------------------------------------
-zinbm1 = glmmTMB(count~spp + (1|site), zi=~mined, Salamanders, family=nbinom2)
+## ----zinbm1-------------------------------------------------------------------
+zinbm1 <- glmmTMB(count~spp + (1|site), zi=~mined, Salamanders, family=nbinom2)
 fixef(zinbm1)[["zi"]]
+
+## ----fezi1, echo = FALSE------------------------------------------------------
+fezi1 <- fixef(zinbm1)[["zi"]]
+plstr <- sprintf("plogis(%1.2f-%1.1f)", fezi1[1], abs(fezi1[2]))
+plval <- signif(plogis(sum(fezi1)), 1)
 
 ## ----zinbm1_confint,cache=TRUE------------------------------------------------
 ## at present we need to specify the parameter by number; for
 ##  extreme cases need to specify the parameter range
 ## (not sure why the upper bound needs to be so high ... ?)
-cc = confint(zinbm1,method="uniroot",parm=9, parm.range=c(-20,20))
+cc <- confint(zinbm1,method="uniroot",parm=9, parm.range=c(-20,20))
 print(cc)
+
+## ----zi1_civals, echo=FALSE---------------------------------------------------
+plstr <- sprintf("plogis(%1.2f)", cc[1,2])
+plval <- signif(plogis(cc[1,2]),2)
+
 
 ## ----fatfiberglmm-------------------------------------------------------------
 ## data taken from gamlss.data:plasma, originally

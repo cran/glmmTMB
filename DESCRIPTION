@@ -1,6 +1,6 @@
 Package: glmmTMB
 Title: Generalized Linear Mixed Models using Template Model Builder
-Version: 1.1.11
+Version: 1.1.12
 Authors@R: c(person("Mollie","Brooks",
 		comment=c(ORCID="0000-0001-6963-8326"),
 		role = c("aut", "cre"),
@@ -37,7 +37,11 @@ Authors@R: c(person("Mollie","Brooks",
   person("Michael", "Agronah", role = "ctb",
     comment = c(ORCID = "0009-0007-2655-4094")),
   person("Hatice Tül Kübra", "Akdur", role = "ctb",
-    comment = c(ORCID = "0000-0003-2144-0518"))
+    comment = c(ORCID = "0000-0003-2144-0518")),
+  person("Daniel", "Sabanés Bové", role = "ctb",
+    comment = c(ORCID = "0000-0002-0176-9239")),
+  person("Nikolas", "Krieger", role = "ctb",
+    comment = c(ORCID = "0000-0002-4581-3545"))
 	)
 Description: Fit linear and generalized linear mixed models with various
     extensions, including zero-inflation. The models are fitted using maximum
@@ -48,7 +52,7 @@ Description: Fit linear and generalized linear mixed models with various
 License: AGPL-3
 Depends: R (>= 3.6.0)
 Imports: methods, TMB (>= 1.9.0), lme4 (>= 1.1-18.9000), Matrix, nlme,
-        numDeriv, mgcv, reformulas (>= 0.2.0)
+        numDeriv, mgcv, reformulas (>= 0.4.1), sandwich
 LinkingTo: TMB, RcppEigen
 Suggests: knitr, rmarkdown, testthat, MASS, lattice, ggplot2 (>=
         2.2.1), mlmRev, bbmle (>= 1.0.19), pscl, coda, reshape2, car
@@ -63,28 +67,34 @@ LazyData: TRUE
 BugReports: https://github.com/glmmTMB/glmmTMB/issues
 NeedsCompilation: yes
 Encoding: UTF-8
-RoxygenNote: 7.3.2
-Packaged: 2025-04-02 14:37:40 UTC; molliebrooks
-Author: Mollie Brooks [aut, cre] (<https://orcid.org/0000-0001-6963-8326>),
-  Ben Bolker [aut] (<https://orcid.org/0000-0002-2127-0443>),
+RoxygenNote: 7.3.2.9000
+Packaged: 2025-08-16 12:40:19 UTC; molliebrooks
+Author: Mollie Brooks [aut, cre] (ORCID:
+    <https://orcid.org/0000-0001-6963-8326>),
+  Ben Bolker [aut] (ORCID: <https://orcid.org/0000-0002-2127-0443>),
   Kasper Kristensen [aut],
-  Martin Maechler [aut] (<https://orcid.org/0000-0002-8685-9910>),
-  Arni Magnusson [aut] (<https://orcid.org/0000-0003-2769-6741>),
+  Martin Maechler [aut] (ORCID: <https://orcid.org/0000-0002-8685-9910>),
+  Arni Magnusson [aut] (ORCID: <https://orcid.org/0000-0003-2769-6741>),
   Maeve McGillycuddy [ctb],
-  Hans Skaug [aut] (<https://orcid.org/0000-0003-4235-2592>),
-  Anders Nielsen [aut] (<https://orcid.org/0000-0001-9683-9262>),
-  Casper Berg [aut] (<https://orcid.org/0000-0002-3812-5269>),
+  Hans Skaug [aut] (ORCID: <https://orcid.org/0000-0003-4235-2592>),
+  Anders Nielsen [aut] (ORCID: <https://orcid.org/0000-0001-9683-9262>),
+  Casper Berg [aut] (ORCID: <https://orcid.org/0000-0002-3812-5269>),
   Koen van Bentham [aut],
-  Nafis Sadat [ctb] (<https://orcid.org/0000-0001-5715-616X>),
-  Daniel Lüdecke [ctb] (<https://orcid.org/0000-0002-8895-3206>),
+  Nafis Sadat [ctb] (ORCID: <https://orcid.org/0000-0001-5715-616X>),
+  Daniel Lüdecke [ctb] (ORCID: <https://orcid.org/0000-0002-8895-3206>),
   Russ Lenth [ctb],
-  Joseph O'Brien [ctb] (<https://orcid.org/0000-0001-9851-5077>),
+  Joseph O'Brien [ctb] (ORCID: <https://orcid.org/0000-0001-9851-5077>),
   Charles J. Geyer [ctb],
-  Mikael Jagan [ctb] (<https://orcid.org/0000-0002-3542-2938>),
-  Brenton Wiernik [ctb] (<https://orcid.org/0000-0001-9560-6336>),
-  Daniel B. Stouffer [ctb] (<https://orcid.org/0000-0001-9436-9674>),
-  Michael Agronah [ctb] (<https://orcid.org/0009-0007-2655-4094>),
-  Hatice Tül Kübra Akdur [ctb] (<https://orcid.org/0000-0003-2144-0518>)
+  Mikael Jagan [ctb] (ORCID: <https://orcid.org/0000-0002-3542-2938>),
+  Brenton Wiernik [ctb] (ORCID: <https://orcid.org/0000-0001-9560-6336>),
+  Daniel B. Stouffer [ctb] (ORCID:
+    <https://orcid.org/0000-0001-9436-9674>),
+  Michael Agronah [ctb] (ORCID: <https://orcid.org/0009-0007-2655-4094>),
+  Hatice Tül Kübra Akdur [ctb] (ORCID:
+    <https://orcid.org/0000-0003-2144-0518>),
+  Daniel Sabanés Bové [ctb] (ORCID:
+    <https://orcid.org/0000-0002-0176-9239>),
+  Nikolas Krieger [ctb] (ORCID: <https://orcid.org/0000-0002-4581-3545>)
 Maintainer: Mollie Brooks <mollieebrooks@gmail.com>
 Repository: CRAN
-Date/Publication: 2025-04-02 23:20:02 UTC
+Date/Publication: 2025-08-18 14:20:21 UTC

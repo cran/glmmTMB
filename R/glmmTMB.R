@@ -178,9 +178,14 @@ startParams <- function(parameters,
                        parameters, jitter.sd)
   }
 
+  expected_params <- paste(sprintf("'%s'", names(parameters)), collapse = ", ")
+  if (!is.null(start) && !(is.list(start) && !is.null(names(start)))) {
+    stop(sprintf("'start' should be a named list (with some subset of elements %s)", expected_params),
+         call. = FALSE)
+  }
   for (p in names(start)) {
     if (!(p %in% names(parameters))) {
-      stop(sprintf("unrecognized vector '%s' in %s",p,sQuote("start")),
+      stop(sprintf("unrecognized vector '%s' in %s (expected elements are %s)", p, sQuote("start"), expected_params),
            call. = FALSE)
     }
     if ((Lp <- length(parameters[[p]])) !=  (Ls <- length(start[[p]]))) {
@@ -298,16 +303,24 @@ mkTMBStruc <- function(formula, ziformula, dispformula,
     }
 
     ## fixme: may need to modify here, or modify getXReTrms, for smooth-term prediction
-    condList  <- getXReTrms(formula, mf, fr, type="coNditional", contrasts=contrasts, sparse=sparseX[["cond"]],
+    condList  <- getXReTrms(formula, mf, fr, type="conditional", contrasts=contrasts, sparse=sparseX[["cond"]],
                             old_smooths = old_smooths$cond)
     ziList    <- getXReTrms(ziformula, mf, fr, type="zero-inflation", contrasts=contrasts, sparse=sparseX[["zi"]],
                             old_smooths = old_smooths$zi)
     dispList  <- getXReTrms(dispformula, mf, fr, type="dispersion", contrasts=contrasts, sparse=sparseX[["disp"]],
     												old_smooths = old_smooths$disp)
 
-    condReStruc <- with(condList, getReStruc(reTrms, ss, aa, reXterms, fr))
-    ziReStruc <- with(ziList, getReStruc(reTrms, ss, aa, reXterms, fr))
-    dispReStruc <- with(dispList, getReStruc(reTrms, ss, aa, reXterms, fr))
+    nRE <- vapply(list(condList, ziList, dispList),
+                  function(x) length(x[["ss"]]), FUN.VALUE = numeric(1))
+    nREtot <- sum(nRE)
+    full_cor <- control$full_cor %||% TRUE
+    if (!length(full_cor) %in% c(1, nREtot)) stop("length of control$full_cor should be 1 or equal to the total number of random effect terms ",
+                                               sprintf("%d != 1 or %d", length(full_cor), nREtot))
+    full_cor <- rep(full_cor, length.out = nREtot)
+    fc_list <- split(full_cor, factor(rep(1:3, times = nRE), levels=1:3))
+    condReStruc <- with(condList, getReStruc(reTrms, ss, aa, reXterms, fr, fc_list[[1]]))
+    ziReStruc <- with(ziList, getReStruc(reTrms, ss, aa, reXterms, fr, fc_list[[2]]))
+    dispReStruc <- with(dispList, getReStruc(reTrms, ss, aa, reXterms, fr, fc_list[[3]]))
     
     grpVar <- with(condList, getGrpVar(reTrms$flist))
 
@@ -700,7 +713,7 @@ getXReTrms <- function(formula, mf, fr, ranOK=TRUE, type="",
             ## no_specials so that mkReTrms can handle it
             reTrms <- mkReTrms(no_specials(
                 findbars_x(formula)),
-                fr, reorder.terms=FALSE, calc.lambdat=FALSE)
+                fr, reorder.terms=FALSE, calc.lambdat=FALSE, sparse = TRUE)
         } else {
             ## dummy elements
             reTrms <- list(Ztlist = list(), flist = list(), cnms = list(),
@@ -826,10 +839,10 @@ getXReTrms <- function(formula, mf, fr, ranOK=TRUE, type="",
         ## HACK: should duplicate 'homdiag' definition, keep it as 's' (or call it 'mgcv_smooth")
         ##  so we can recognize it.
         ## Here, we're using the fact that the ...AddArgs stuff is still in an unevaluated form
-        reXterms <- Map(function(f, a) {
-            if (identical(head(a), as.symbol('s'))) NA else termsfun(f)
-        }, ss$reTrmFormulas, ss$reTrmAddArgs)
-        
+        drop_s <- function(f, a) {
+            if (identical(a[[1]], as.symbol('s'))) NA else termsfun(f)
+        }
+        reXterms <- Map(drop_s, ss$reTrmFormulas, ss$reTrmAddArgs)
         
         for (i in seq_along(ss$reTrmAddArgs)) {
           if(ss$reTrmClasses[i] == "rr") {
@@ -940,12 +953,14 @@ getGrpVar <- function(x)
 ##' @param reXterms terms objects corresponding to each RE term
 ##' @param fr model frame
 ##' @param aa additional arguments (i.e. rank, or var-cov matrix)
+##' @inheritParams glmmTMBControl
 ##' @return a list
 ##' \item{blockNumTheta}{number of variance covariance parameters per term}
 ##' \item{blockSize}{size (dimension) of one block}
 ##' \item{blockReps}{number of times the blocks are repeated (levels)}
 ##' \item{covCode}{structure code}
 ##' \item{simCode}{simulation code; should we "zero" (set to zero/ignore), "fix" (set to existing parameter values), "random" (draw new random deviations)?}
+##' \item{fullCor}{logical vector (compute/store full correlation matrix?)}
 ##' @examples
 ##' data(sleepstudy, package="lme4")
 ##' rt <- lme4::lFormula(Reaction~Days+(1|Subject)+(0+Days|Subject),
@@ -956,12 +971,12 @@ getGrpVar <- function(x)
 ##' getReStruc(rt2)
 ##' @importFrom stats setNames dist .getXlevels
 ##' @export
-getReStruc <- function(reTrms, ss=NULL, aa=NULL, reXterms=NULL, fr=NULL) {
+getReStruc <- function(reTrms, ss=NULL, aa=NULL, reXterms=NULL, fr=NULL, full_cor=NULL) {
 
-  ## information from ReTrms is contained in cnms, flist elements
-  ## cnms: list of column-name vectors per term
-  ## flist: data frame of grouping variables (factors)
-  ##   'assign' attribute gives match between RE terms and factors
+    ## information from ReTrms is contained in cnms, flist elements
+    ## cnms: list of column-name vectors per term
+    ## flist: data frame of grouping variables (factors)
+    ##   'assign' attribute gives match between RE terms and factors
     if (is.null(reTrms)) return(list())
     
     ## Get info on sizes of RE components
@@ -1021,14 +1036,15 @@ getReStruc <- function(reTrms, ss=NULL, aa=NULL, reXterms=NULL, fr=NULL) {
                     blockSize = blksize[i],
                     blockNumTheta = blockNumTheta[[i]],
                     blockCode = covCode[i],
-                    simCode = simCode[i]
+                    simCode = simCode[i],
+                    fullCor = as.integer(full_cor[i])
                     )
-        if(ss[i] == "ar1") {
+        if(ss[i] %in% c("ar1", "hetar1")) {
             ## FIXME: Keep this warning ?
             if (any(reTrms$cnms[[i]][1] == "(Intercept)") )
-                warning("AR1 not meaningful with intercept")
+                warning(paste0(ss[i], "() not meaningful with intercept"))
             if (length(.getXlevels(reXterms[[i]],fr))!=1) {
-                stop("ar1() expects a single, factor variable as the time component")
+                stop(paste0(ss[i], "() expects a single, factor variable as the time component"))
             }
         } else if(ss[i] == "ou") {
             times <- parseNumLevels(reTrms$cnms[[i]])
@@ -1132,6 +1148,7 @@ binomialType <- function(x) {
 ##' \itemize{
 ##' \item \code{diag} (diagonal, heterogeneous variance)
 ##' \item \code{ar1} (autoregressive order-1, homogeneous variance)
+##' \item \code{hetar1} (autoregressive order-1, heterogeneous variance)
 ##' \item \code{cs} (compound symmetric, heterogeneous variance)
 ##' \item \code{ou} (* Ornstein-Uhlenbeck, homogeneous variance)
 ##' \item \code{exp} (* exponential autocorrelation)
@@ -1472,6 +1489,7 @@ glmmTMB <- function(
 ##' @param start_method (list) Options to initialize the starting values when fitting models with reduced-rank (\code{rr}) covariance structures; \code{jitter.sd} adds variation to the starting values of latent variables when \code{method = "res"}.
 ##' @param rank_check Check whether all parameters in fixed-effects models are identifiable? This test may be slow for models with large numbers of fixed-effect parameters, therefore default value is 'warning'. Alternatives include 'skip' (no check), 'stop' (throw an error), and 'adjust' (drop redundant columns from the fixed-effect model matrix).
 ##' @param conv_check Do basic checks of convergence (check for non-positive definite Hessian and non-zero convergence code from optimizer). Default is 'warning'; 'skip' ignores these tests (not recommended for general use!)
+##' @param full_cor compute full correlation matrices? can be either a length-1 logical vector (TRUE/FALSE) to include full correlation matrices for all or none of the random-effect terms in the model, or a logical vector with length equal to the number of correlation matrices, to include/exclude correlation matrices individually
 ##' @details
 ##' By default, \code{\link{glmmTMB}} uses the nonlinear optimizer
 ##' \code{\link{nlminb}} for parameter estimation. Users may sometimes
@@ -1521,7 +1539,8 @@ glmmTMBControl <- function(optCtrl=NULL,
                            zerodisp_val=log(.Machine$double.eps)/4,
                            start_method = list(method = NULL, jitter.sd = 0),
                            rank_check = c("adjust", "warning", "stop", "skip"),
-                           conv_check = c("warning", "skip")) {
+                           conv_check = c("warning", "skip"),
+                           full_cor = TRUE) {
 
     if (is.null(optCtrl) && identical(optimizer,nlminb)) {
         optCtrl <- list(iter.max=300, eval.max=400)
@@ -1559,7 +1578,8 @@ glmmTMBControl <- function(optCtrl=NULL,
     ##           (family$family != "tweedie")
     ## (TMB tweedie derivatives currently slow)
     namedList(optCtrl, profile, collect, parallel, optimizer, optArgs,
-              eigval_check, zerodisp_val, start_method, rank_check, conv_check)
+              eigval_check, zerodisp_val, start_method, rank_check, conv_check,
+              full_cor)
 }
 
 ##' collapse duplicated observations
@@ -1856,7 +1876,7 @@ fitTMB <- function(TMBStruc, doOptim = TRUE) {
                               profile = "beta",
                               silent = !verbose,
                               DLL = "glmmTMB"))
-        optTime <- system.time(fit <- optfun())
+        optTime <- system.time(fit <- optfun(), gcFirst = FALSE)
 
         sdr <- sdreport(obj, getJointPrecision=TRUE)
         parnames <- names(obj$env$par)
@@ -1913,9 +1933,10 @@ fitTMB <- function(TMBStruc, doOptim = TRUE) {
         if (any(is.na(obj$gr(obj$par)))) {
             stop("some elements of gradient are NaN at starting parameter values")
         }
-        optTime <- system.time(fit <- optfun())
+        optTime <- system.time(fit <- optfun(), gcFirst = FALSE)
     }
 
+    attr(fit, "optTime") <- optTime
     finalizeTMB(TMBStruc, obj, fit, h, data.tmb.old)
 }
 
@@ -2105,7 +2126,7 @@ ngrps.factor <- function(object, ...) nlevels(object)
 ##' @importFrom stats pnorm
 ##' @method summary glmmTMB
 ##' @export
-summary.glmmTMB <- function(object,...)
+summary.glmmTMB <- function(object, sandwich = FALSE, cluster = getGroups(object), ...)
 {
     if (length(list(...)) > 0) {
         ## FIXME: need testing code
@@ -2134,7 +2155,7 @@ summary.glmmTMB <- function(object,...)
     }
 
     ff <- fixef(object)
-    vv <- vcov(object, include_nonest=TRUE)
+    vv <- vcov(object, include_nonest=TRUE, sandwich = sandwich, cluster = cluster)
     coefs <- setNames(lapply(names(ff),
             function(nm) if (trivialFixef(names(ff[[nm]]),nm)) NULL else
                              mkCoeftab(ff[[nm]],vv[[nm]])),
@@ -2152,7 +2173,7 @@ summary.glmmTMB <- function(object,...)
                    nobs = nobs(object),
 		   coefficients = coefs,
                    sigma = sig,
-		   vcov = vcov(object),
+		   vcov = vv, # No need to potentially recompute here anything.
 		   varcor = varcor, # and use formatVC(.) for printing.
 		   AICtab = llAIC[["AICtab"]],
                    call = object$call,
@@ -2211,4 +2232,3 @@ print.summary.glmmTMB <- function(x, digits = max(3, getOption("digits") - 3),
     }
     invisible(x)
 }## print.summary.glmmTMB
-
