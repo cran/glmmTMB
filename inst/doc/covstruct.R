@@ -45,6 +45,7 @@ ctab <- read.delim(sep = "#", comment = "",
  Covariance                       # Notation      # no. parameters # Requirement  # Parameters
  Unstructured (general positive definite)      # `us`          #  $n(n+1)/2$     # # See [Mappings]
  Heterogeneous Toeplitz           # `toep`        #  $2n-1$         #     # log-standard deviations ($\\theta_1-\\theta_n$); correlations $\\rho_k = \\theta_{n+k}/\\sqrt{1+\\theta_{n+k}^2}$, $k = \\textrm{abs}(i-j+1)$
+ Homogeneous Toeplitz           # `homtoep`        #  $n$         #     # log-SD ($\\theta_1$); correlations $\\rho_k = \\theta_{k+1}/\\sqrt{1+\\theta_{k+1}^2}$, $k = \\textrm{abs}(i-j+1)$
  Het. compound symmetry  # `cs`          #  $n+1$    #      # log-SDs ($\\theta_1-\\theta_n$); correlation $\\{a=1/(n-1); \\rho = \\textrm{plogis}(\\theta_{n+1}) \\cdot (1+a) -a \\}$
  Homogeneous compound symmetry  # `homcs`          #  $2$    #      # log-SD ($\\theta_1$); correlation $\\{a=1/(n-1); \\rho = \\textrm{plogis}(\\theta_{2}) \\cdot (1+a) -a \\}$
  Homogenous diagonal     # `homdiag`     #  $1$      #  # log-SD

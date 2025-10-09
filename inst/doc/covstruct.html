@@ -12,7 +12,7 @@
 
 <meta name="author" content="Kasper Kristensen and Maeve McGillycuddy" />
 
-<meta name="date" content="2025-08-16" />
+<meta name="date" content="2025-10-09" />
 
 <title>Covariance structures with glmmTMB</title>
 
@@ -120,7 +120,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 
 <h1 class="title toc-ignore">Covariance structures with glmmTMB</h1>
 <h4 class="author">Kasper Kristensen and Maeve McGillycuddy</h4>
-<h4 class="date">2025-08-16</h4>
+<h4 class="date">2025-10-09</h4>
 
 
 <div id="TOC">
@@ -191,83 +191,90 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 <td align="left">log-standard deviations (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlations <span class="math inline">\(\rho_k = \theta_{n+k}/\sqrt{1+\theta_{n+k}^2}\)</span>, <span class="math inline">\(k = \textrm{abs}(i-j+1)\)</span></td>
 </tr>
 <tr class="odd">
+<td align="left">Homogeneous Toeplitz</td>
+<td align="left"><code>homtoep</code></td>
+<td align="left"><span class="math inline">\(n\)</span></td>
+<td align="left"></td>
+<td align="left">log-SD (<span class="math inline">\(\theta_1\)</span>); correlations <span class="math inline">\(\rho_k = \theta_{k+1}/\sqrt{1+\theta_{k+1}^2}\)</span>, <span class="math inline">\(k = \textrm{abs}(i-j+1)\)</span></td>
+</tr>
+<tr class="even">
 <td align="left">Het. compound symmetry</td>
 <td align="left"><code>cs</code></td>
 <td align="left"><span class="math inline">\(n+1\)</span></td>
 <td align="left"></td>
 <td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); correlation <span class="math inline">\(\{a=1/(n-1); \rho = \textrm{plogis}(\theta_{n+1}) \cdot (1+a) -a \}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Homogeneous compound symmetry</td>
 <td align="left"><code>homcs</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left"></td>
 <td align="left">log-SD (<span class="math inline">\(\theta_1\)</span>); correlation <span class="math inline">\(\{a=1/(n-1); \rho = \textrm{plogis}(\theta_{2}) \cdot (1+a) -a \}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Homogenous diagonal</td>
 <td align="left"><code>homdiag</code></td>
 <td align="left"><span class="math inline">\(1\)</span></td>
 <td align="left"></td>
 <td align="left">log-SD</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Het. diagonal</td>
 <td align="left"><code>diag</code></td>
 <td align="left"><span class="math inline">\(n\)</span></td>
 <td align="left"></td>
 <td align="left">log-SDs</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">AR(1)</td>
 <td align="left"><code>ar1</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Unit spaced levels</td>
 <td align="left">log-SD; <span class="math inline">\(\rho = \left(\theta_2/\sqrt{1+\theta_2^2}\right)^{d_{ij}}\)</span></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Het. AR(1)</td>
 <td align="left"><code>hetar1</code></td>
 <td align="left"><span class="math inline">\(n + 1\)</span></td>
 <td align="left">Unit spaced levels</td>
 <td align="left">log-SDs (<span class="math inline">\(\theta_1-\theta_n\)</span>); <span class="math inline">\(\rho = \left(\theta_2/\sqrt{1+\theta_2^2}\right)^{d_{ij}}\)</span></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Ornstein-Uhlenbeck</td>
 <td align="left"><code>ou</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-OU rate (<span class="math inline">\(\rho = \exp(-\exp(\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Spatial exponential</td>
 <td align="left"><code>exp</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-\theta_2) d_{ij})\)</span>)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Spatial Gaussian</td>
 <td align="left"><code>gau</code></td>
 <td align="left"><span class="math inline">\(2\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD; log-scale (<span class="math inline">\(\rho = \exp(-\exp(-2\theta_2) d_{ij}^2\)</span>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Spatial Matèrn</td>
 <td align="left"><code>mat</code></td>
 <td align="left"><span class="math inline">\(3\)</span></td>
 <td align="left">Coordinates</td>
 <td align="left">log-SD, log-range, log-shape (power)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Reduced-rank</td>
 <td align="left"><code>rr</code></td>
 <td align="left"><span class="math inline">\(nd-d(d-1)/2\)</span></td>
 <td align="left">rank (d)</td>
 <td align="left">Factor loading matrix (see <a href="#reduced-rank">Reduced-rank</a>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Proportional</td>
 <td align="left"><code>propto</code></td>
 <td align="left"><span class="math inline">\(1\)</span></td>
@@ -277,7 +284,7 @@ code > span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Inf
 </tbody>
 </table>
 <p>The word 'heterogeneous' refers to the marginal variances of the model; <span class="math inline">\(\textrm{plogis}(x) = (1+\exp(-x))^{-1}\)</span></p>
-<p>Homogenous versions of some structures (e.g. Toeplitz, compound symmetric) can be implemented by using the <code>map</code> argument to set all log-SD parameters equal to each other.</p>
+<p>Homogenous versions of some structures (e.g. compound symmetric) can be implemented by using the <code>map</code> argument to set all log-SD parameters equal to each other.</p>
 <p>Some of the structures require temporal or spatial coordinates. We will show examples in a later section.</p>
 </div>
 <div id="the-ar1-covariance-structure" class="section level2">
@@ -376,7 +383,7 @@ fit.us<span class="op">$</span>sdr<span class="op">$</span>pdHess ## Converged ?
 </div>
 <div id="the-toeplitz-structure" class="section level2">
 <h2>The Toeplitz structure</h2>
-<p>The next natural step would be to reduce the number of parameters by collecting correlation parameters within the same off-diagonal. This amounts to 24 correlation parameters and 25 variance parameters.</p>
+<p>The next natural step would be to reduce the number of parameters by collecting correlation parameters within the same off-diagonal. This amounts to 24 correlation parameters. For the heterogeneous version 25 variance parameters are used, while just a single variance parameter is estimated for the homogeneous version.</p>
 <p>We use <code>dispformula = ~0</code> to suppress the residual variance (it actually gets set to a small value controlled by the <code>zerodisp_val</code> argument of <code>glmmTMBControl()</code>)<a href="#fn1" class="footnoteRef" id="fnref1"><sup>1</sup></a></p>
 <div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">fit.toep &lt;-<span class="st"> </span><span class="kw">glmmTMB</span>(y <span class="op">~</span><span class="st"> </span><span class="kw">toep</span>(times <span class="op">+</span><span class="st"> </span><span class="dv">0</span> <span class="op">|</span><span class="st"> </span>group), <span class="dt">data=</span>dat1,
                     <span class="dt">dispformula=</span><span class="op">~</span><span class="dv">0</span>)
