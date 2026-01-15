@@ -1,5 +1,5 @@
 params <-
-list(EVAL = FALSE)
+list(EVAL = FALSE, have_metafor = TRUE, have_ape = TRUE)
 
 ## ----setup, include=FALSE, message=FALSE--------------------------------------
 library(knitr)
@@ -58,55 +58,68 @@ ctab <- read.delim(sep = "#", comment = "",
  Spatial Matèrn                   # `mat`         #  $3$            # Coordinates # log-SD, log-range, log-shape (power)
  Reduced-rank                     # `rr`          #  $nd-d(d-1)/2$  # rank (d)    # Factor loading matrix (see [Reduced-rank])
  Proportional                       # `propto`      #  $1$            # Variance-covariance matrix # log(proportionality constant)
+ Equal                            # `equalto`     #  $0$            # Variance-covariance matrix # -
 "
 )
 knitr::kable(ctab)
 
-## ----sim1, eval=TRUE----------------------------------------------------------
-n <- 25                                              ## Number of time points
-x <- MASS::mvrnorm(mu = rep(0,n),
-             Sigma = .7 ^ as.matrix(dist(1:n)) )    ## Simulate the process using the MASS package
-y <- x + rnorm(n)                                   ## Add measurement noise
+## ----simGroup, eval = TRUE----------------------------------------------------
+simGroup <- function(g, n=25, phi=0.7) {
+  ## Draw 1 sample (i.e., 1 group) from n-variate normal distribution
+  x <- MASS::mvrnorm(mu = rep(0,n),
+                     Sigma = phi ^ as.matrix(dist(1:n)) ) 
+  y <- x + rnorm(n)              ## observation error
+  times <- factor(1:n, levels = 1:n)
+  group <- factor(rep(g, n))
+  data.frame(y, times, group)
+}
+dat0 <- simGroup(g=1)
 
-## ----simtimes-----------------------------------------------------------------
-# times <- factor(1:n, levels=1:n)
-# head(levels(times))
-
-## ----simgroup-----------------------------------------------------------------
-# group <- factor(rep(1,n))
-
-## ----simcomb------------------------------------------------------------------
-# dat0 <- data.frame(y, times, group)
-
-## ----fitar1, eval=FALSE-------------------------------------------------------
-# glmmTMB(y ~ ar1(times + 0 | group), data=dat0)
+## ----fitar1-------------------------------------------------------------------
+# mod <- glmmTMB(y ~ ar1(times + 0 | group), data=dat0)
 
 ## ----ar0fit,echo=FALSE--------------------------------------------------------
-# glmmTMB(y ~ ar1(times + 0 | group), data=dat0)
+# fixef(mod)
+# VarCorr(mod)
 
-## ----simGroup-----------------------------------------------------------------
-# simGroup <- function(g, n=6, phi=0.7) {
-#     x <- MASS::mvrnorm(mu = rep(0,n),
-#              Sigma = phi ^ as.matrix(dist(1:n)) )   ## Simulate the process
-#     y <- x + rnorm(n)                               ## Add measurement noise
-#     times <- factor(1:n)
-#     group <- factor(rep(g,n))
-#     data.frame(y, times, group)
-# }
-# simGroup(1)
+## ----phihat-------------------------------------------------------------------
+# theta <- getME(mod, "theta")
+# phi_transfun <- function(x) x/sqrt(1+x^2)
+# phi_hat <- phi_transfun(theta[2])
+# 
+
+## ----phidiff------------------------------------------------------------------
+# phi_sim <- 0.7
+# n <- 25
+# phi_diff <- abs((phi_sim-phi_hat)/phi_sim)
+
+## ----phi_wald_ci--------------------------------------------------------------
+# confint(mod)["Cor.times2.times1|group",]
+
+## ----phi_prof_ci--------------------------------------------------------------
+# suppressWarnings(ar1_prof_ci <- confint(mod, method = "profile"))
+# phi_transfun(ar1_prof_ci[3,])
 
 ## ----simGroup2----------------------------------------------------------------
-# dat1 <- do.call("rbind", lapply(1:1000, simGroup) )
+# ngrp <- 200
+# sim1 <- lapply(1:ngrp, simGroup)
+# dat1 <- do.call("rbind", sim1)
 
 ## ----fit.ar1------------------------------------------------------------------
 # (fit.ar1 <- glmmTMB(y ~ ar1(times + 0 | group), data=dat1))
+
+## ----fit.ar1.comp-------------------------------------------------------------
+# phi_hat <- phi_transfun(getME(fit.ar1, "theta")[2])
+# abs((phi_sim-phi_hat)/phi_sim)  ## Much closer!
+# ## narrower confidence intervals
+# confint(fit.ar1)["Cor.times2.times1|group",]
 
 ## ----fit.us-------------------------------------------------------------------
 # fit.us <- glmmTMB(y ~ us(times + 0 | group), data=dat1, dispformula=~0)
 # fit.us$sdr$pdHess ## Converged ?
 
 ## ----fit.us.vc----------------------------------------------------------------
-# VarCorr(fit.us)
+# print(VarCorr(fit.us), maxdim = 5)
 
 ## ----fit.toep-----------------------------------------------------------------
 # fit.toep <- glmmTMB(y ~ toep(times + 0 | group), data=dat1,
@@ -114,18 +127,11 @@ y <- x + rnorm(n)                                   ## Add measurement noise
 # fit.toep$sdr$pdHess ## Converged ?
 
 ## ----fit.toep.vc--------------------------------------------------------------
-# (vc.toep <- VarCorr(fit.toep))
+# print(vc.toep <- VarCorr(fit.toep), maxdim = 5)
 
-## ----fit.toep.vc.diag---------------------------------------------------------
-# vc1 <- vc.toep$cond[[1]] ## first term of var-cov for RE of conditional model
-# summary(diag(vc1))
-# summary(vc1[row(vc1)!=col(vc1)])
-
-## ----fit.toep.reml------------------------------------------------------------
+## ----fit.toep.reml, warning = FALSE-------------------------------------------
 # fit.toep.reml <- update(fit.toep, REML=TRUE)
-# vc1R <- VarCorr(fit.toep.reml)$cond[[1]]
-# summary(diag(vc1R))
-# summary(vc1R[row(vc1R)!=col(vc1R)])
+# print(vc1R <- VarCorr(fit.toep.reml), maxdim = 5)
 
 ## ----fit.cs-------------------------------------------------------------------
 # fit.cs <- glmmTMB(y ~ cs(times + 0 | group), data=dat1, dispformula=~0)
@@ -159,28 +165,28 @@ y <- x + rnorm(n)                                   ## Add measurement noise
 # fit.ou$sdr$pdHess ## Converged ?
 
 ## ----fit.ou.vc----------------------------------------------------------------
-# VarCorr(fit.ou)
+# print(VarCorr(fit.ou), maxdim = 5)
 
 ## ----fit.mat------------------------------------------------------------------
 # fit.mat <- glmmTMB(y ~ mat(times + 0 | group), data=dat1, dispformula=~0)
 # fit.mat$sdr$pdHess ## Converged ?
 
 ## ----fit.mat.vc---------------------------------------------------------------
-# VarCorr(fit.mat)
+# print(VarCorr(fit.mat), maxdim = 5)
 
 ## ----fit.gau------------------------------------------------------------------
 # fit.gau <- glmmTMB(y ~ gau(times + 0 | group), data=dat1, dispformula=~0)
 # fit.gau$sdr$pdHess ## Converged ?
 
 ## ----fit.gau.vc---------------------------------------------------------------
-# VarCorr(fit.gau)
+# print(VarCorr(fit.gau), maxdim = 5)
 
 ## ----fit.exp------------------------------------------------------------------
 # fit.exp <- glmmTMB(y ~ exp(times + 0 | group), data=dat1)
 # fit.exp$sdr$pdHess ## Converged ?
 
 ## ----fit.exp.vc---------------------------------------------------------------
-# VarCorr(fit.exp)
+# print(VarCorr(fit.exp), maxdim = 5)
 
 ## ----spatial_data-------------------------------------------------------------
 # d <- data.frame(z = as.vector(volcano),
@@ -261,8 +267,11 @@ usefig("volcano_results.png")
 # cc[upper.tri(cc)] <- cpars
 # L <- crossprod(cc)
 # D <- diag(1/sqrt(diag(L)))
-# round(D %*% L %*% D,3)
-# round(unname(attr(vv1,"correlation")),3)
+# prt_cor <- function(x, maxdim = 5, dig = 3) {
+#   print(x[1:maxdim, 1:maxdim], digits = dig)
+# }
+# prt_cor(D %*% L %*% D)
+# prt_cor(unname(attr(vv1,"correlation")))
 
 ## ----other_check--------------------------------------------------------------
 # all.equal(c(cov2cor(vv1)),c(fit.us$obj$env$report(fit.us$fit$parfull)$corr[[1]]))
@@ -273,7 +282,7 @@ usefig("volcano_results.png")
 # length(ppar)
 # range(which(names(ppar)=="theta")) ## the last n*(n+1)/2 parameters
 # ## only 1 fixed effect parameter
-# tt <- tmbprofile(fit.us$obj,2,trace=FALSE)
+# tt <- TMB::tmbprofile(fit.us$obj,2,trace=FALSE)
 
 ## ----fit.us.profile.plot_fake,eval=FALSE--------------------------------------
 # confint(tt)
@@ -290,7 +299,7 @@ usefig("us_profile_plot.png")
 # length(ppar)
 # range(which(names(ppar)=="theta")) ## the last n*(n+1)/2 parameters
 # ## only 1 fixed effect parameter, 1 dispersion parameter
-# tt2 <- tmbprofile(fit.cs$obj,3,trace=FALSE)
+# tt2 <- TMB::tmbprofile(fit.cs$obj,3,trace=FALSE)
 
 ## ----fit.cs.profile.plot_fake,eval=FALSE--------------------------------------
 # plot(tt2)
@@ -346,21 +355,64 @@ usefig("cs_profile_plot.png")
 # arrows(0, 0, rr_info$b[,1]*afac, rr_info$b[,2]*afac)
 # text(rr_info$fl[,1], rr_info$fl[,2], sp_names, pos = 3, col = 2)
 
-## ----propto_ex----------------------------------------------------------------
-# library(ape)
-# data(carni70, package = "ade4")
-# tree <- read.tree(text = carni70$tre)
-# phylo_varcov <- vcv(tree)# phylogenetic variance-covariance matrix
-# ## row/column names of phylo_varcov must match factor levels in data
-# ## (punctuation/separators in species names and ordering)
-# spnames <- gsub("_", ".", rownames(carni70$tab))
-# carnidat <- data.frame(
-#     species = factor(spnames, levels = rownames(phylo_varcov)),
-#     dummy = factor(1),
-#     carni70$tab)
-# fit_phylo <- glmmTMB(log(range) ~ log(size) +
-#                          propto(0 + species | dummy, phylo_varcov),
-#                      data = carnidat)
+## ----propto_ex, eval=params$have_ape------------------------------------------
+library(ape)
+data(carni70, package = "ade4")
+tree <- read.tree(text = carni70$tre)
+phylo_varcov <- vcv(tree)# phylogenetic variance-covariance matrix
+## row/column names of phylo_varcov must match factor levels in data
+## (punctuation/separators in species names and ordering)
+spnames <- gsub("_", ".", rownames(carni70$tab))
+carnidat <- data.frame(
+    species = factor(spnames, levels = rownames(phylo_varcov)),
+    dummy = factor(1),
+    carni70$tab)
+fit_phylo <- glmmTMB(log(range) ~ log(size) +
+                         propto(0 + species | dummy, phylo_varcov),
+                     data = carnidat)
+
+## ----equalto, message=FALSE, warning=FALSE, eval=params$have_metafor----------
+library(metafor)
+dat <- dat.assink2016
+head(dat,9) 
+dat$g <- 1 #grouping variable
+dat$id <- as.factor(1:nrow(dat)) #effect size id - this needs to be a factor
+
+# create variance-covariance matrix for sampling errors 
+# assume that the effect sizes within studies are correlated by rho=0.6
+VCV <- metafor::vcalc(vi, cluster=study, obs=esid, data=dat, rho=0.6)
+round(VCV[dat$study %in% c(1,2), dat$study %in% c(1,2)], 4)
+
+# fit meta-analysis using approximate VCV matrix
+fit_ma <- glmmTMB(yi ~ 1 + (1|study) + equalto(0 + id|g, VCV), REML=TRUE, data=dat)
+
+## ----glmmTMB_meta, eval=params$have_metafor-----------------------------------
+# assume sampling errors are independent
+V <- diag(dat$vi) 
+# fit meta-analysis with a diagonal matrix VCV
+fit_ma <- glmmTMB(yi ~ 1 + (1|study) + equalto(0 + id|g, V), REML=TRUE, data=dat)
+
+
+## ----metafor_models, echo=FALSE, eval=params$have_metafor---------------------
+# equivalent model with block-diagonal VCV in metafor
+fit_rma1 <- metafor::rma.mv(yi, VCV, 
+                           random = list(~1 | study, ~1 | id),
+                           control=list(REMLf=FALSE),
+                           data=dat)
+
+# equivalent model with diagonal VCV using map and start
+fit_ma2 <- glmmTMB(yi ~ 1 + (1|study) + (1|id),
+                   dispformula = ~ 0 + id, 
+                   map = list(betadisp = factor(rep(NA, nrow(dat)))),
+                   start = list(betadisp = log(sqrt(dat$vi))),
+                  REML=TRUE, 
+                  data=dat)
+
+# equivalent model with diagonal VCV in metafor
+fit_rma2 <- metafor::rma.mv(yi, vi,
+                           random = list(~1 | study, ~1 | id),
+                           control=list(REMLf=FALSE),
+                           data=dat)
 
 ## ----mm_int, eval = TRUE------------------------------------------------------
 model.matrix(~f, data.frame(f=factor(c("c", "s", "v"))))
