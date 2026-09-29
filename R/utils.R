@@ -1,3 +1,44 @@
+## TMB/RTMB switch
+
+#' switch to using RTMB
+#' @param flag FALSE (default) to use TMB backend; TRUE to use RTMB backend
+#' @note Fitting with \code{useRTMB(TRUE)} (or \code{control=glmmTMBControl(use_rtmb=TRUE)})
+#' loads the \code{RTMB} package. RTMB (<= 2.0) registers an S4 method for
+#' \code{solve()} with an overly broad signature that also drops any extra
+#' arguments (e.g. \code{tol=}); once RTMB is loaded, calls to \code{solve()}
+#' with more than two arguments can fail elsewhere in the same R session,
+#' even in code unrelated to glmmTMB or RTMB, for the remainder of that
+#' session (see \url{https://github.com/kaskr/RTMB/issues/92}). This is
+#' fixed in RTMB's development version; until a fixed RTMB is released,
+#' restart R (or avoid \code{useRTMB(TRUE)}) if you hit this.
+#' @export
+useRTMB <- local({
+  useRTMB <- FALSE
+  function(flag = NULL) { useRTMB <<- flag %||% useRTMB ; useRTMB }
+})
+MakeADFun <- function(data, ..., DLL) {
+  if (!useRTMB()) {
+    TMB::MakeADFun(data=data, ..., DLL=DLL)
+  }else {
+    rtmb_fun <- cmb(rtmb_tpl, data)
+    obj <- RTMB::MakeADFun(rtmb_fun, ...)
+    attr(data, "func") <- rtmb_fun
+    obj$env$data <- data
+    obj$env$rtmb_data_env <- environment(rtmb_fun)
+    obj$env$report <- obj$report
+    obj
+    #RTMB::MakeADFun(cmb(rtmb_tpl, data), ...)
+  }
+}
+
+.setObjData <- function(obj, data) {
+  obj$env$data <- data
+  if (!is.null(obj$env$rtmb_data_env)) {
+    obj$env$rtmb_data_env$d <- data
+  }
+  invisible(obj)
+}
+
 ## backward compat (copied from lme4)
 if((Rv <- getRversion()) < "3.2.1") {
     lengths <- function (x, use.names = TRUE) vapply(x, length, 1L, USE.NAMES = use.names)
@@ -188,9 +229,13 @@ check_dots <- function(..., .ignore = NULL, .action="stop") {
         L <- L[!names(L) %in% .ignore]
     }
     if (length(L)>0) {
+        args <- paste(shQuote(names(L)), collapse=",")
+        msg <- switch(.action,
+                      stop = sprintf("unknown arguments: %s", args),
+                      warning = ,
+                      message = sprintf("unknown arguments ignored: %s", args))
         FUN <- get(.action)
-        FUN("unknown arguments: ",
-            paste(names(L), collapse=","))
+        FUN(msg)
     }
     return(NULL)
 }
@@ -275,7 +320,18 @@ check_dep_version <- function(this_pkg = "glmmTMB",  dep_pkg = "TMB", dep_type =
 #' require that you re-install a \emph{binary-compatible} version of \code{glmmTMB},
 #' i.e. a version that has been compiled with the updated version of the upstream
 #' package.
+#'
+#' While you'll always get a warning when there is a mismatch between
+#' the version(s) of the upstream package(s) used to build \code{glmmTMB} and
+#' the version(s) you have installed, these are only warnings. Such mismatches
+#' may cause problems, but the problems are likely to be obvious (crashes); if
+#' \code{glmmTMB} seems to be working OK anyway, you can ignore the warning.
+#'
+#' If not:
 #' \itemize{
+#' \item You may be able to install a freshly built binary (of the development version) from \code{glmmTMB}'s
+#' \href{https://glmmtmb.r-universe.dev/glmmTMB}{R-universe page} via
+#' \code{install.packages('glmmTMB', repos = c('https://glmmtmb.r-universe.dev', 'https://cloud.r-project.org'))}
 #' \item If you have development tools (compilers etc.) installed, you
 #' should be able to re-install a binary-compatible version of the package by running
 #' \code{install.packages("glmmTMB", type="source")}. If you want to install
@@ -284,34 +340,15 @@ check_dep_version <- function(this_pkg = "glmmTMB",  dep_pkg = "TMB", dep_type =
 #' (On Windows, you can install development tools following the instructions at
 #' \url{https://cran.r-project.org/bin/windows/Rtools/}; on MacOS, see
 #' \url{https://mac.r-project.org/tools/}.)
+#' }
 #'
-#' \item If you do \emph{not} have development tools and can't/don't want to
-#' install them (and so can't install packages with compiled code from source),
-#' you have two choices:
-#' \itemize{
-#' \item revert the upstream package(s) to their previous binary version. For example, using the
-#' \code{checkpoint} package:
-#' \preformatted{
-#' ## load (installing if necessary) the checkpoint package
-#' while (!require("checkpoint")) install.packages("checkpoint")
-#' ## retrieve build date of installed version of glmmTMB
-#' bd <- as.character(asDateBuilt(
-#'       packageDescription("glmmTMB",fields="Built")))
-#' oldrepo <- getOption("repos")
-#' use_mran_snapshot(bd) ## was setSnapshot() pre-checkpoint v1.0.0
-#' install.packages("TMB")
-#' options(repos=oldrepo) ## restore original repo
-#' }
-#' A similar recipe (substituting \code{Matrix} for \code{TMB} and \code{TMB} for \code{glmmTMB})
-#' can be used if you get warnings about an incompatibility between \code{TMB} and \code{Matrix}.
-#' \item hope that the glmmTMB maintainers have posted a binary
-#' version of the package that works with your system; try installing it via
-#' \code{install.packages("glmmTMB",repos="https://glmmTMB.github.io/glmmTMB/repos",type="binary")}
-#' If this doesn't work, please file an issue (with full details about your
+#' If R-universe isn't working for you,
+#' you don't have development tools installed, and you can't
+#' install them for some reason(and so can't install packages with compiled code from source),
+#' please file an issue (with full details about your
 #' operating system and R version) asking the maintainers to build and
-#' post an appropriate binary version of the package.
-#' }
-#' }
+#' post an appropriate binary version of the package (we may or may not
+#' be able to help, depending on your system and how much time we have).
 NULL
 
 #' Check OpenMP status
@@ -423,6 +460,13 @@ up2date <- function(oldfit, update_gauss_disp = FALSE) {
     if (!"aggregate" %in% names(ee$data)) {
       ee$data[["aggregate"]] <- numeric(0)
     }
+    if (!"combinom_disp_Link" %in% names(ee$data)) {
+      ## log link on dispersion (the default; only ever nonzero for
+      ## combinomial fits with allow_negative_nu = TRUE)
+      ## stored as double: TMB requires storage mode 'double' for data
+      ## objects carrying the 'check.passed' attribute
+      ee$data[["combinom_disp_Link"]] <- 0
+    }
 
     for (comp in c("terms", "termszi", "termsdisp")) {
       for (i in seq_along(ee$data[[comp]])) {
@@ -437,6 +481,10 @@ up2date <- function(oldfit, update_gauss_disp = FALSE) {
       ## these are DATA_IVECTOR but apparently after processing
       ##  TMB turns these into numeric ... ??
       for (v in prior_ivars) ee$data[[v]] <- numeric(0)
+      ee$data$rtmb_prior_distrib_name <- factor(character(0),
+                                                levels = names(.valid_prior))
+      ee$data$rtmb_prior_whichpar_name <- factor(character(0),
+                                                 levels = names(.valid_vprior))
       for (v in prior_fvars) ee$data[[v]] <- numeric(0)
       
     }
@@ -456,7 +504,7 @@ up2date <- function(oldfit, update_gauss_disp = FALSE) {
     }
 
     oldfit$obj <- with(ee,
-                       TMB::MakeADFun(data,
+                            MakeADFun(data,
                                       parameters,
                                       map = map,
                                       random = random,
@@ -759,6 +807,9 @@ set_simcodes <- function(g, val = "zero", terms = "ALL") {
             ee$data$terms[[i]]$simCode <- .valid_simcode[[val]]
         }
     }
+    if (!is.null(ee$rtmb_data_env)) {
+        ee$rtmb_data_env$d <- ee$data
+    }
 
 }
 
@@ -1049,6 +1100,33 @@ our_binom_initialize <- function(family) {
     b0 <- binomial()$initialize
     b0[[length(b0)+1]] <- newtest
     return(b0)
+}
+
+#' indices of the parameters the objective does not integrate out
+#'
+#' @param namevec character vector of parameter names (e.g. the row names
+#' of a joint precision matrix)
+#' @param include_beta treat the conditional fixed effects (\code{beta})
+#' as random too, as the TMB objective does under REML
+#' @return integer vector of the positions in \code{namevec} that are not
+#' random-effect parameters; with \code{include_beta = TRUE} the
+#' \code{beta} positions are excluded from the result as well
+#' @details Names the same blocks as \code{randomArg} in
+#' \code{mkTMBStruc()}, unconditionally where \code{randomArg} adds a
+#' block only when its Z matrix is non-empty (safe, because an absent
+#' block contributes no parameter names) and with \code{beta} gated on the
+#' argument where \code{randomArg} gates it on \code{REML}. The names are
+#' spelled out here so the two sites that marginalize over the
+#' random-effect blocks (the profile branch of \code{fitTMB()} and
+#' \code{vcov.glmmTMB()}) share one definition; \code{.covbeta_kappa()} in
+#' denom_df.R also calls \code{GMRFmarginal()} but selects \code{beta}
+#' directly and is unaffected. Keep the list in sync
+#' with \code{mkTMBStruc/randomArg}.
+#' @noRd
+whichNotRandom <- function(namevec, include_beta = FALSE) {
+    random_args <- c("b", "bzi", "bdisp")
+    if (include_beta) random_args <- c(random_args, "beta")
+    which(!namevec %in% random_args)
 }
 
 #' retrieve current value of TMB autopar setting

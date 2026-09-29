@@ -1,6 +1,6 @@
 ## ----opts, include = FALSE----------------------------------------------------
 ## only run chunks if we have all required pkgs
-knitr::opts_chunk$set(eval = all(sapply(c("purrr", "blme", "broom.mixed", "dplyr", "ggplot2"), require,
+knitr::opts_chunk$set(eval = all(sapply(c("purrr", "blme", "broom.mixed", "dplyr", "ggplot2", "pscl"), require,
                                         character.only = TRUE)),
                       fig.width = 7, fig.height = 5)
 ## https://stackoverflow.com/questions/71683610/using-ggplot2-why-does-changing-the-color-palette-result-in-all-grey
@@ -109,6 +109,36 @@ gres <- (dplyr::bind_rows(list(bglmer = t1, glmer = t2, glmmTMB = t3B, glmmTMB_p
 ggplot(gres, aes(x = estimate, y = model)) + 
     geom_pointrange(aes(xmin = lwr, xmax = upr),
                     position = position_dodge(width = 0.5))
+
+## ----zifit--------------------------------------------------------------------
+data("prussian", package = "pscl")
+prussian <- mutate(prussian,
+                   fyear = factor(year))
+zi_fit <- glmmTMB(y ~ year + (1|corp),
+                  ziformula = ~fyear, family = poisson, data = prussian)
+cprior <- data.frame(prior = rep("normal(0,3)",2),
+                     class = rep("fixef_zi",2),
+                     coef = c("(Intercept)", ""))
+zi_fit_prior <- update(zi_fit, priors = cprior)
+
+## ----zifit_plot, echo = FALSE-------------------------------------------------
+zres <- (purrr::map_dfr(list(basic = zi_fit,
+                             prior = zi_fit_prior),
+                        ~ tidy(., conf.int = TRUE,
+                               component = "zi",
+                               effects = "fixed"),
+                        .id = "model"
+                        )
+  |> select(model, term, estimate, lwr = conf.low, upr = conf.high)
+)
+yrlabs <- 1800+head(as.numeric(unique(prussian$year)), -1)
+ggplot(zres, aes(estimate, term, colour = model)) +
+  geom_pointrange(aes(xmin = lwr, xmax = upr),
+                  position = position_dodge(width = 0.25)) +
+  coord_cartesian(xlim = c(-10, 10)) +
+  scale_y_discrete(labels = c("intercept", yrlabs)) + 
+  scale_colour_manual(values = OkIt) +
+  labs(y = "year")
 
 ## ----deps, eval = FALSE-------------------------------------------------------
 # 	
